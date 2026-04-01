@@ -34,15 +34,8 @@ pub enum AgentMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    Registered {
-        node_id: String,
-    },
+    Registered { node_id: String },
     DispatchTask(Task),
-    CancelSession {
-        session_id: String,
-    },
-    SendInput {
-        session_id: String,
-        input: String,
-    },
+    CancelSession { session_id: String },
+    SendInput { session_id: String, input: String },
 }

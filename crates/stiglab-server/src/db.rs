@@ -89,14 +89,12 @@ pub async fn update_node_heartbeat(
     node_id: &str,
     active_sessions: u32,
 ) -> anyhow::Result<()> {
-    sqlx::query(
-        "UPDATE nodes SET last_heartbeat = $1, active_sessions = $2 WHERE id = $3",
-    )
-    .bind(Utc::now().to_rfc3339())
-    .bind(active_sessions as i32)
-    .bind(node_id)
-    .execute(pool)
-    .await?;
+    sqlx::query("UPDATE nodes SET last_heartbeat = $1, active_sessions = $2 WHERE id = $3")
+        .bind(Utc::now().to_rfc3339())
+        .bind(active_sessions as i32)
+        .bind(node_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -226,11 +224,16 @@ impl TryFrom<NodeRow> for Node {
             id: row.id,
             name: row.name,
             hostname: row.hostname,
-            status: row.status.parse().map_err(|e: stiglab_core::StiglabError| anyhow::anyhow!(e))?,
+            status: row
+                .status
+                .parse()
+                .map_err(|e: stiglab_core::StiglabError| anyhow::anyhow!(e))?,
             max_sessions: row.max_sessions as u32,
             active_sessions: row.active_sessions as u32,
-            last_heartbeat: chrono::DateTime::parse_from_rfc3339(&row.last_heartbeat)?.with_timezone(&Utc),
-            registered_at: chrono::DateTime::parse_from_rfc3339(&row.registered_at)?.with_timezone(&Utc),
+            last_heartbeat: chrono::DateTime::parse_from_rfc3339(&row.last_heartbeat)?
+                .with_timezone(&Utc),
+            registered_at: chrono::DateTime::parse_from_rfc3339(&row.registered_at)?
+                .with_timezone(&Utc),
         })
     }
 }
@@ -256,7 +259,10 @@ impl TryFrom<SessionRow> for Session {
             id: row.id,
             task_id: row.task_id,
             node_id: row.node_id,
-            state: row.state.parse().map_err(|e: stiglab_core::StiglabError| anyhow::anyhow!(e))?,
+            state: row
+                .state
+                .parse()
+                .map_err(|e: stiglab_core::StiglabError| anyhow::anyhow!(e))?,
             prompt: row.prompt,
             output: row.output,
             working_dir: row.working_dir,

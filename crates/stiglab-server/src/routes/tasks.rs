@@ -97,12 +97,15 @@ pub async fn create_task(
     if let Some(agent) = agents.get(&target_node.id) {
         let msg = ServerMessage::DispatchTask(task.clone());
         if let Ok(json) = serde_json::to_string(&msg) {
-            let _ = agent.sender.send(axum::extract::ws::Message::Text(json.into()));
+            let _ = agent.sender.send(axum::extract::ws::Message::Text(json));
         }
         // Update session state to dispatched
         let _ = db::update_session_state(&state.db, &session.id, SessionState::Dispatched).await;
     } else {
-        tracing::warn!("agent for node {} not connected, session stays pending", target_node.id);
+        tracing::warn!(
+            "agent for node {} not connected, session stays pending",
+            target_node.id
+        );
     }
 
     (
