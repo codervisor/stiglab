@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
+interface SSEChunk {
+  chunk: string;
+  stream: string;
+}
+
 interface SSEData {
   state: string;
-  output: string | null;
+  chunks: SSEChunk[];
 }
 
 export function useSessionLogs(sessionId: string | undefined) {
@@ -19,11 +24,12 @@ export function useSessionLogs(sessionId: string | undefined) {
     es.onmessage = (event) => {
       try {
         const data: SSEData = JSON.parse(event.data);
-        if (data.output) {
-          setLogs(data.output);
-        }
         if (data.state) {
           setState(data.state);
+        }
+        if (data.chunks && data.chunks.length > 0) {
+          const newText = data.chunks.map((c) => c.chunk).join('');
+          setLogs((prev) => prev + newText);
         }
       } catch {
         // ignore parse errors

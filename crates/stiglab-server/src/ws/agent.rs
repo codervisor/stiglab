@@ -111,39 +111,25 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
             }
 
             AgentMessage::SessionOutput { session_id, chunk } => {
-                // Append chunk to session output
-                if let Ok(Some(session)) = db::get_session(&state.db, &session_id).await {
-                    let new_output = match session.output {
-                        Some(existing) => format!("{existing}{chunk}"),
-                        None => chunk,
-                    };
-                    if let Err(e) =
-                        db::update_session_output(&state.db, &session_id, &new_output).await
-                    {
-                        tracing::error!("failed to update session output: {e}");
-                    }
+                // O(1) append — insert a new log row instead of read-modify-write
+                if let Err(e) =
+                    db::append_session_log(&state.db, &session_id, &chunk, "stdout").await
+                {
+                    tracing::error!("failed to append session log: {e}");
                 }
             }
 
             AgentMessage::SessionCompleted { session_id, output } => {
                 let _ = db::update_session_state(&state.db, &session_id, SessionState::Done).await;
-                // Only overwrite output if the completion message carries content
                 if !output.is_empty() {
-                    let _ = db::update_session_output(&state.db, &session_id, &output).await;
+                    let _ = db::append_session_log(&state.db, &session_id, &output, "stdout").await;
                 }
             }
 
             AgentMessage::SessionFailed { session_id, error } => {
                 let _ =
                     db::update_session_state(&state.db, &session_id, SessionState::Failed).await;
-                // Append error to existing output rather than overwriting
-                if let Ok(Some(session)) = db::get_session(&state.db, &session_id).await {
-                    let new_output = match session.output {
-                        Some(existing) => format!("{existing}\n[error] {error}"),
-                        None => error,
-                    };
-                    let _ = db::update_session_output(&state.db, &session_id, &new_output).await;
-                }
+                let _ = db::append_session_log(&state.db, &session_id, &error, "stderr").await;
             }
         }
     }
