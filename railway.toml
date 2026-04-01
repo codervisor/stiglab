@@ -12,6 +12,11 @@ healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
+[services.variables]
+STIGLAB_HOST = "0.0.0.0"
+STIGLAB_PORT = "${{PORT}}"
+DATABASE_URL = "${{Postgres.DATABASE_URL}}"
+
 [[services]]
 name = "stiglab-agent"
 
@@ -23,3 +28,8 @@ dockerfilePath = "docker/agent.Dockerfile"
 startCommand = "/app/stiglab-agent"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+[services.variables]
+STIGLAB_SERVER_URL = "wss://${{stiglab-server.RAILWAY_PUBLIC_DOMAIN}}/agent/ws"
+STIGLAB_NODE_NAME = "railway-agent"
+STIGLAB_MAX_SESSIONS = "4"
