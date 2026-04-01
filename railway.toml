@@ -1,8 +1,11 @@
-[build]
+[[services]]
+name = "stiglab-server"
+
+[services.build]
 builder = "dockerfile"
 dockerfilePath = "docker/server.Dockerfile"
 
-[deploy]
+[services.deploy]
 startCommand = "/app/stiglab-server"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
@@ -10,4 +13,13 @@ restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
 [[services]]
-name = "stiglab-server"
+name = "stiglab-agent"
+
+[services.build]
+builder = "dockerfile"
+dockerfilePath = "docker/agent.Dockerfile"
+
+[services.deploy]
+startCommand = "/app/stiglab-agent"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
