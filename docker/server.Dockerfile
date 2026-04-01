@@ -36,5 +36,4 @@ ENV STIGLAB_STATIC_DIR=/app/static
 ENV STIGLAB_HOST=0.0.0.0
 ENV STIGLAB_PORT=3000
 EXPOSE 3000
-VOLUME ["/app/data"]
 CMD ["/app/stiglab-server"]
