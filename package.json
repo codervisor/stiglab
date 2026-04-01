@@ -1,0 +1,21 @@
+{
+  "name": "stiglab",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n server,agent,ui -c blue,green,cyan \"pnpm dev:server\" \"pnpm dev:agent\" \"pnpm dev:ui\"",
+    "dev:server": "cargo run -p stiglab-server",
+    "dev:agent": "cargo run -p stiglab-agent -- --server ws://localhost:3000/agent/ws --name dev-node",
+    "dev:ui": "pnpm --filter stiglab-ui dev",
+    "build": "cargo build --release && pnpm --filter stiglab-ui build",
+    "build:server": "cargo build --release -p stiglab-server",
+    "build:agent": "cargo build --release -p stiglab-agent",
+    "build:ui": "pnpm --filter stiglab-ui build",
+    "lint": "cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && pnpm --filter stiglab-ui lint",
+    "test": "cargo test --all",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
