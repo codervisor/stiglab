@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: stiglab
+      POSTGRES_PASSWORD: stiglab
+      POSTGRES_DB: stiglab
+    ports:
+      - "5432:5432"
+    volumes:
+      - stiglab-db:/var/lib/postgresql/data
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    environment:
+      STIGLAB_HOST: "0.0.0.0"
+      STIGLAB_PORT: "3000"
+      DATABASE_URL: "postgres://stiglab:stiglab@db:5432/stiglab"
+
+  agent:
+    build:
+      context: .
+      dockerfile: docker/agent.Dockerfile
+    depends_on:
+      - server
+    environment:
+      STIGLAB_SERVER_URL: "ws://server:3000/agent/ws"
+      STIGLAB_NODE_NAME: "agent-1"
+      STIGLAB_MAX_SESSIONS: "4"
+
+volumes:
+  stiglab-db:
