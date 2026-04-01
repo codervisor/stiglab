@@ -45,7 +45,15 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
 
         match agent_msg {
             AgentMessage::Register(info) => {
-                let id = Uuid::new_v4().to_string();
+                // Reuse existing node ID if a node with this name already exists
+                let existing = db::find_node_by_name(&state.db, &info.name)
+                    .await
+                    .ok()
+                    .flatten();
+                let id = existing
+                    .as_ref()
+                    .map(|n| n.id.clone())
+                    .unwrap_or_else(|| Uuid::new_v4().to_string());
                 let node = Node {
                     id: id.clone(),
                     name: info.name.clone(),
@@ -54,7 +62,7 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
                     max_sessions: info.max_sessions,
                     active_sessions: 0,
                     last_heartbeat: Utc::now(),
-                    registered_at: Utc::now(),
+                    registered_at: existing.map(|n| n.registered_at).unwrap_or_else(Utc::now),
                 };
 
                 if let Err(e) = db::upsert_node(&state.db, &node).await {
@@ -119,13 +127,23 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
 
             AgentMessage::SessionCompleted { session_id, output } => {
                 let _ = db::update_session_state(&state.db, &session_id, SessionState::Done).await;
-                let _ = db::update_session_output(&state.db, &session_id, &output).await;
+                // Only overwrite output if the completion message carries content
+                if !output.is_empty() {
+                    let _ = db::update_session_output(&state.db, &session_id, &output).await;
+                }
             }
 
             AgentMessage::SessionFailed { session_id, error } => {
                 let _ =
                     db::update_session_state(&state.db, &session_id, SessionState::Failed).await;
-                let _ = db::update_session_output(&state.db, &session_id, &error).await;
+                // Append error to existing output rather than overwriting
+                if let Ok(Some(session)) = db::get_session(&state.db, &session_id).await {
+                    let new_output = match session.output {
+                        Some(existing) => format!("{existing}\n[error] {error}"),
+                        None => error,
+                    };
+                    let _ = db::update_session_output(&state.db, &session_id, &new_output).await;
+                }
             }
         }
     }

@@ -39,7 +39,23 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/agent/ws", get(ws::agent::agent_ws_handler));
 
-    let mut app = api_routes.with_state(state).layer(CorsLayer::permissive());
+    // Configure CORS: restrict to specified origin in production, permissive in dev
+    let cors = if let Some(ref origin) = config.cors_origin {
+        tracing::info!("CORS restricted to origin: {origin}");
+        CorsLayer::new()
+            .allow_origin(
+                origin
+                    .parse::<axum::http::HeaderValue>()
+                    .expect("invalid CORS origin"),
+            )
+            .allow_methods(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any)
+    } else {
+        tracing::warn!("CORS is permissive (set STIGLAB_CORS_ORIGIN to restrict)");
+        CorsLayer::permissive()
+    };
+
+    let mut app = api_routes.with_state(state).layer(cors);
 
     // Serve static UI files if configured
     if let Some(ref static_dir) = config.static_dir {

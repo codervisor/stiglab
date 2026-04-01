@@ -75,7 +75,7 @@ pub async fn create_task(
     };
 
     // Create session
-    let session = Session {
+    let mut session = Session {
         id: Uuid::new_v4().to_string(),
         task_id: task.id.clone(),
         node_id: target_node.id.clone(),
@@ -95,12 +95,17 @@ pub async fn create_task(
     // Dispatch to agent via WebSocket
     let agents = state.agents.read().await;
     if let Some(agent) = agents.get(&target_node.id) {
-        let msg = ServerMessage::DispatchTask(task.clone());
+        let msg = ServerMessage::DispatchTask {
+            task: task.clone(),
+            session_id: session.id.clone(),
+        };
         if let Ok(json) = serde_json::to_string(&msg) {
             let _ = agent.sender.send(axum::extract::ws::Message::Text(json));
         }
         // Update session state to dispatched
         let _ = db::update_session_state(&state.db, &session.id, SessionState::Dispatched).await;
+        session.state = SessionState::Dispatched;
+        session.updated_at = Utc::now();
     } else {
         tracing::warn!(
             "agent for node {} not connected, session stays pending",

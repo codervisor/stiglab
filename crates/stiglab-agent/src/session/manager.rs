@@ -35,7 +35,7 @@ impl SessionManager {
         self.active_count.clone()
     }
 
-    pub async fn spawn_session(&mut self, task: Task) {
+    pub async fn spawn_session(&mut self, task: Task, session_id: String) {
         let count = self.active_count.load(Ordering::Relaxed);
         if count >= self.max_sessions {
             tracing::warn!(
@@ -45,14 +45,20 @@ impl SessionManager {
                 task.id
             );
             let _ = self.outbound_tx.send(AgentMessage::SessionFailed {
-                session_id: task.id,
+                session_id,
                 error: "node at capacity".to_string(),
             });
             return;
         }
 
-        let session_id = task.id.clone();
-        match SessionProcess::spawn(&task, &self.agent_command, self.outbound_tx.clone()).await {
+        match SessionProcess::spawn(
+            &task,
+            &session_id,
+            &self.agent_command,
+            self.outbound_tx.clone(),
+        )
+        .await
+        {
             Ok(process) => {
                 self.active_count.fetch_add(1, Ordering::Relaxed);
                 let mut sessions = self.sessions.write().await;
