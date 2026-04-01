@@ -26,4 +26,4 @@ thiserror = "2"
 anyhow = "1"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 futures-util = "0.3"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }

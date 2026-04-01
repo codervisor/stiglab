@@ -17,3 +17,4 @@ uuid = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 futures-util = { workspace = true }
+hostname = "0.4"
