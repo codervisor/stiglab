@@ -1,0 +1,29 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use axum::extract::ws::Message;
+use sqlx::AnyPool;
+use tokio::sync::{mpsc, RwLock};
+
+pub type WsSender = mpsc::UnboundedSender<Message>;
+
+#[derive(Debug)]
+pub struct AgentConnection {
+    pub node_id: String,
+    pub sender: WsSender,
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub db: AnyPool,
+    pub agents: Arc<RwLock<HashMap<String, AgentConnection>>>,
+}
+
+impl AppState {
+    pub fn new(db: AnyPool) -> Self {
+        AppState {
+            db,
+            agents: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
