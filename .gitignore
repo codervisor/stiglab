@@ -4,7 +4,6 @@ debug/
 **/*.rs.bk
 *.pdb
 **/mutants.out*/
-Cargo.lock
 
 # Node
 node_modules/
