@@ -51,6 +51,25 @@ async fn run_migrations(pool: &AnyPool) -> anyhow::Result<()> {
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS session_logs (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            chunk TEXT NOT NULL,
+            stream TEXT NOT NULL DEFAULT 'stdout',
+            created_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_session_logs_session_id ON session_logs (session_id, seq)",
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }
 
@@ -198,18 +217,106 @@ pub async fn update_session_state(
     Ok(())
 }
 
-pub async fn update_session_output(
+// ── Session Logs (append-only) ──
+
+pub async fn append_session_log(
     pool: &AnyPool,
     session_id: &str,
-    output: &str,
+    chunk: &str,
+    stream: &str,
 ) -> anyhow::Result<()> {
-    sqlx::query("UPDATE sessions SET output = $1, updated_at = $2 WHERE id = $3")
-        .bind(output)
-        .bind(Utc::now().to_rfc3339())
-        .bind(session_id)
-        .execute(pool)
-        .await?;
+    let id = uuid::Uuid::new_v4().to_string();
+    // Use a subquery to get the next sequence number for this session
+    sqlx::query(
+        "INSERT INTO session_logs (id, session_id, seq, chunk, stream, created_at)
+         VALUES ($1, $2, COALESCE((SELECT MAX(seq) FROM session_logs WHERE session_id = $2), 0) + 1, $3, $4, $5)",
+    )
+    .bind(&id)
+    .bind(session_id)
+    .bind(chunk)
+    .bind(stream)
+    .bind(Utc::now().to_rfc3339())
+    .execute(pool)
+    .await?;
     Ok(())
+}
+
+/// Get all log chunks for a session, ordered by sequence number.
+pub async fn get_session_logs(pool: &AnyPool, session_id: &str) -> anyhow::Result<Vec<LogChunk>> {
+    let rows = sqlx::query_as::<_, LogChunkRow>(
+        "SELECT chunk, stream, created_at FROM session_logs WHERE session_id = $1 ORDER BY seq ASC",
+    )
+    .bind(session_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.into()).collect())
+}
+
+/// Get log chunks added after a given sequence number (for incremental SSE).
+pub async fn get_session_logs_after(
+    pool: &AnyPool,
+    session_id: &str,
+    after_seq: i64,
+) -> anyhow::Result<Vec<LogChunkWithSeq>> {
+    let rows = sqlx::query_as::<_, LogChunkWithSeqRow>(
+        "SELECT seq, chunk, stream, created_at FROM session_logs WHERE session_id = $1 AND seq > $2 ORDER BY seq ASC",
+    )
+    .bind(session_id)
+    .bind(after_seq)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.into()).collect())
+}
+
+#[allow(dead_code)]
+pub struct LogChunk {
+    pub chunk: String,
+    pub stream: String,
+    pub created_at: String,
+}
+
+#[allow(dead_code)]
+pub struct LogChunkWithSeq {
+    pub seq: i64,
+    pub chunk: String,
+    pub stream: String,
+    pub created_at: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct LogChunkRow {
+    chunk: String,
+    stream: String,
+    created_at: String,
+}
+
+impl From<LogChunkRow> for LogChunk {
+    fn from(row: LogChunkRow) -> Self {
+        LogChunk {
+            chunk: row.chunk,
+            stream: row.stream,
+            created_at: row.created_at,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct LogChunkWithSeqRow {
+    seq: i32,
+    chunk: String,
+    stream: String,
+    created_at: String,
+}
+
+impl From<LogChunkWithSeqRow> for LogChunkWithSeq {
+    fn from(row: LogChunkWithSeqRow) -> Self {
+        LogChunkWithSeq {
+            seq: row.seq as i64,
+            chunk: row.chunk,
+            stream: row.stream,
+            created_at: row.created_at,
+        }
+    }
 }
 
 // ── Row types for sqlx ──
