@@ -60,24 +60,21 @@ pub async fn session_logs(
     }
 
     // Return SSE stream that polls for session updates
-    let sse_stream = stream::unfold(
-        (state, session_id),
-        |(state, session_id)| async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            match db::get_session(&state.db, &session_id).await {
-                Ok(Some(session)) => {
-                    let event = Event::default()
-                        .json_data(serde_json::json!({
-                            "state": session.state,
-                            "output": session.output,
-                        }))
-                        .ok()?;
-                    Some((Ok::<_, Infallible>(event), (state, session_id)))
-                }
-                _ => None,
+    let sse_stream = stream::unfold((state, session_id), |(state, session_id)| async move {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        match db::get_session(&state.db, &session_id).await {
+            Ok(Some(session)) => {
+                let event = Event::default()
+                    .json_data(serde_json::json!({
+                        "state": session.state,
+                        "output": session.output,
+                    }))
+                    .ok()?;
+                Some((Ok::<_, Infallible>(event), (state, session_id)))
             }
-        },
-    );
+            _ => None,
+        }
+    });
 
     Ok(Sse::new(sse_stream).keep_alive(KeepAlive::default()))
 }

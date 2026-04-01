@@ -9,6 +9,7 @@ pub type WsSender = mpsc::UnboundedSender<Message>;
 
 #[derive(Debug)]
 pub struct AgentConnection {
+    #[allow(dead_code)]
     pub node_id: String,
     pub sender: WsSender,
 }

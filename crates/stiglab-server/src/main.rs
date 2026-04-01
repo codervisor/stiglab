@@ -33,20 +33,19 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/tasks", post(routes::tasks::create_task))
         .route("/api/sessions", get(routes::sessions::list_sessions))
         .route("/api/sessions/{id}", get(routes::sessions::get_session))
-        .route("/api/sessions/{id}/logs", get(routes::sessions::session_logs))
+        .route(
+            "/api/sessions/{id}/logs",
+            get(routes::sessions::session_logs),
+        )
         .route("/agent/ws", get(ws::agent::agent_ws_handler));
 
-    let mut app = api_routes
-        .with_state(state)
-        .layer(CorsLayer::permissive());
+    let mut app = api_routes.with_state(state).layer(CorsLayer::permissive());
 
     // Serve static UI files if configured
     if let Some(ref static_dir) = config.static_dir {
         tracing::info!("serving static files from {static_dir}");
         let index_file = format!("{static_dir}/index.html");
-        app = app.fallback_service(
-            ServeDir::new(static_dir).fallback(ServeFile::new(index_file)),
-        );
+        app = app.fallback_service(ServeDir::new(static_dir).fallback(ServeFile::new(index_file)));
     }
 
     let addr = format!("{}:{}", config.host, config.port);

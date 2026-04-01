@@ -38,7 +38,12 @@ impl SessionManager {
     pub async fn spawn_session(&mut self, task: Task) {
         let count = self.active_count.load(Ordering::Relaxed);
         if count >= self.max_sessions {
-            tracing::warn!("at capacity ({}/{}), rejecting task {}", count, self.max_sessions, task.id);
+            tracing::warn!(
+                "at capacity ({}/{}), rejecting task {}",
+                count,
+                self.max_sessions,
+                task.id
+            );
             let _ = self.outbound_tx.send(AgentMessage::SessionFailed {
                 session_id: task.id,
                 error: "node at capacity".to_string(),

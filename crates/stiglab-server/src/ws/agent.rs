@@ -80,19 +80,23 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
                 // Send confirmation
                 let response = ServerMessage::Registered { node_id: id };
                 if let Ok(json) = serde_json::to_string(&response) {
-                    let _ = tx.send(Message::Text(json.into()));
+                    let _ = tx.send(Message::Text(json));
                 }
             }
 
             AgentMessage::Heartbeat { active_sessions } => {
                 if let Some(ref nid) = node_id {
-                    if let Err(e) = db::update_node_heartbeat(&state.db, nid, active_sessions).await {
+                    if let Err(e) = db::update_node_heartbeat(&state.db, nid, active_sessions).await
+                    {
                         tracing::error!("failed to update heartbeat: {e}");
                     }
                 }
             }
 
-            AgentMessage::SessionStateChanged { session_id, state: new_state } => {
+            AgentMessage::SessionStateChanged {
+                session_id,
+                state: new_state,
+            } => {
                 if let Err(e) = db::update_session_state(&state.db, &session_id, new_state).await {
                     tracing::error!("failed to update session state: {e}");
                 }
@@ -105,7 +109,9 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
                         Some(existing) => format!("{existing}{chunk}"),
                         None => chunk,
                     };
-                    if let Err(e) = db::update_session_output(&state.db, &session_id, &new_output).await {
+                    if let Err(e) =
+                        db::update_session_output(&state.db, &session_id, &new_output).await
+                    {
                         tracing::error!("failed to update session output: {e}");
                     }
                 }
@@ -117,7 +123,8 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
             }
 
             AgentMessage::SessionFailed { session_id, error } => {
-                let _ = db::update_session_state(&state.db, &session_id, SessionState::Failed).await;
+                let _ =
+                    db::update_session_state(&state.db, &session_id, SessionState::Failed).await;
                 let _ = db::update_session_output(&state.db, &session_id, &error).await;
             }
         }

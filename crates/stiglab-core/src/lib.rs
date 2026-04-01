@@ -51,15 +51,24 @@ mod tests {
 
     #[test]
     fn test_session_state_from_str() {
-        assert_eq!("pending".parse::<SessionState>().unwrap(), SessionState::Pending);
-        assert_eq!("waiting_input".parse::<SessionState>().unwrap(), SessionState::WaitingInput);
+        assert_eq!(
+            "pending".parse::<SessionState>().unwrap(),
+            SessionState::Pending
+        );
+        assert_eq!(
+            "waiting_input".parse::<SessionState>().unwrap(),
+            SessionState::WaitingInput
+        );
         assert!("invalid".parse::<SessionState>().is_err());
     }
 
     #[test]
     fn test_node_status_display_and_parse() {
         assert_eq!(NodeStatus::Online.to_string(), "online");
-        assert_eq!("draining".parse::<NodeStatus>().unwrap(), NodeStatus::Draining);
+        assert_eq!(
+            "draining".parse::<NodeStatus>().unwrap(),
+            NodeStatus::Draining
+        );
         assert!("invalid".parse::<NodeStatus>().is_err());
     }
 

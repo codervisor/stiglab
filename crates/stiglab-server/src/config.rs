@@ -15,8 +15,8 @@ impl ServerConfig {
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(3000);
-        let database_url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite://./data/stiglab.db".to_string());
+        let database_url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./data/stiglab.db".to_string());
         let static_dir = env::var("STIGLAB_STATIC_DIR").ok();
 
         ServerConfig {

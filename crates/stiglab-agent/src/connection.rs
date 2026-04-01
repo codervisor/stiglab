@@ -29,7 +29,7 @@ pub async fn connect_and_run(config: AgentConfig) -> Result<()> {
     });
 
     let json = serde_json::to_string(&register)?;
-    ws_sender.send(Message::Text(json.into())).await?;
+    ws_sender.send(Message::Text(json)).await?;
 
     let mut session_manager = SessionManager::new(
         config.max_sessions,
@@ -41,7 +41,7 @@ pub async fn connect_and_run(config: AgentConfig) -> Result<()> {
     let send_task = tokio::spawn(async move {
         while let Some(msg) = outbound_rx.recv().await {
             if let Ok(json) = serde_json::to_string(&msg) {
-                if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                if ws_sender.send(Message::Text(json)).await.is_err() {
                     break;
                 }
             }
@@ -78,7 +78,11 @@ pub async fn connect_and_run(config: AgentConfig) -> Result<()> {
                 tracing::info!("registered as node: {node_id}");
             }
             ServerMessage::DispatchTask(task) => {
-                tracing::info!("received task: {} - {}", task.id, &task.prompt[..task.prompt.len().min(50)]);
+                tracing::info!(
+                    "received task: {} - {}",
+                    task.id,
+                    &task.prompt[..task.prompt.len().min(50)]
+                );
                 session_manager.spawn_session(task).await;
             }
             ServerMessage::CancelSession { session_id } => {
