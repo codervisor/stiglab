@@ -6,6 +6,7 @@ pub struct ServerConfig {
     pub port: u16,
     pub database_url: String,
     pub static_dir: Option<String>,
+    pub cors_origin: Option<String>,
 }
 
 impl ServerConfig {
@@ -18,12 +19,14 @@ impl ServerConfig {
         let database_url =
             env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./data/stiglab.db".to_string());
         let static_dir = env::var("STIGLAB_STATIC_DIR").ok();
+        let cors_origin = env::var("STIGLAB_CORS_ORIGIN").ok();
 
         ServerConfig {
             host,
             port,
             database_url,
             static_dir,
+            cors_origin,
         }
     }
 }

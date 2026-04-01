@@ -124,6 +124,16 @@ pub async fn find_least_loaded_node(pool: &AnyPool) -> anyhow::Result<Option<Nod
     row.map(|r| r.try_into()).transpose()
 }
 
+pub async fn find_node_by_name(pool: &AnyPool, name: &str) -> anyhow::Result<Option<Node>> {
+    let row = sqlx::query_as::<_, NodeRow>(
+        "SELECT id, name, hostname, status, max_sessions, active_sessions, last_heartbeat, registered_at FROM nodes WHERE name = $1",
+    )
+    .bind(name)
+    .fetch_optional(pool)
+    .await?;
+    row.map(|r| r.try_into()).transpose()
+}
+
 pub async fn get_node(pool: &AnyPool, node_id: &str) -> anyhow::Result<Option<Node>> {
     let row = sqlx::query_as::<_, NodeRow>(
         "SELECT id, name, hostname, status, max_sessions, active_sessions, last_heartbeat, registered_at FROM nodes WHERE id = $1",

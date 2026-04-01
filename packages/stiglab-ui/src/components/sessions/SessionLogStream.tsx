@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSessionLogs } from "@/lib/sse"
 
 interface SessionLogStreamProps {
@@ -8,19 +7,18 @@ interface SessionLogStreamProps {
 
 export function SessionLogStream({ sessionId }: SessionLogStreamProps) {
   const { logs } = useSessionLogs(sessionId)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [logs])
 
   return (
-    <ScrollArea className="h-[400px] rounded-md border bg-black/50 p-4" ref={scrollRef}>
+    <div className="h-[400px] overflow-auto rounded-md border bg-black/50 p-4">
       <pre className="font-mono text-sm text-green-400 whitespace-pre-wrap">
         {logs || "Waiting for output..."}
       </pre>
-    </ScrollArea>
+      <div ref={bottomRef} />
+    </div>
   )
 }

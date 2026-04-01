@@ -14,6 +14,7 @@ pub struct SessionProcess {
 impl SessionProcess {
     pub async fn spawn(
         task: &Task,
+        session_id: &str,
         agent_command: &str,
         outbound_tx: mpsc::UnboundedSender<AgentMessage>,
     ) -> Result<Self> {
@@ -30,7 +31,7 @@ impl SessionProcess {
 
         let mut child = cmd.spawn()?;
 
-        let session_id = task.id.clone();
+        let session_id = session_id.to_string();
 
         // Handle stdin
         let (stdin_tx, mut stdin_rx) = mpsc::unbounded_channel::<String>();
