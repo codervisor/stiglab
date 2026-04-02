@@ -1,3 +1,6 @@
 {
-  "start": "./bin/stiglab-server"
+  "$schema": "https://schema.railpack.com",
+  "deploy": {
+    "startCommand": "./bin/stiglab-server"
+  }
 }
