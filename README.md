@@ -188,7 +188,7 @@ Multi-arch support: `linux/amd64` and `linux/arm64`.
 Deploy the control plane to Railway with one click:
 
 1. Connect your GitHub repo in Railway
-1. Railway auto-detects `railway.toml` and builds from `docker/server.Dockerfile`
+1. Railway auto-detects `railway.toml` and builds from `docker/server/Dockerfile`
 1. Add PostgreSQL plugin — Railway auto-injects `DATABASE_URL`
 1. Set environment variable: `STIGLAB_PORT=$PORT`
 
