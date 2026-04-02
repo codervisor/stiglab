@@ -3,7 +3,7 @@ name = "stiglab-server"
 
 [services.build]
 builder = "dockerfile"
-dockerfilePath = "docker/server.Dockerfile"
+dockerfilePath = "docker/server/Dockerfile"
 
 [services.deploy]
 startCommand = "/app/stiglab-server"
@@ -22,7 +22,7 @@ name = "stiglab-agent"
 
 [services.build]
 builder = "dockerfile"
-dockerfilePath = "docker/agent.Dockerfile"
+dockerfilePath = "docker/agent/Dockerfile"
 
 [services.deploy]
 startCommand = "/app/stiglab-agent"
