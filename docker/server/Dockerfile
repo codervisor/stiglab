@@ -1,6 +1,6 @@
 # ---- Stage 1: Build UI ----
 FROM node:20-alpine AS ui-builder
-RUN corepack enable && corepack prepare pnpm@10 --activate
+RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
 WORKDIR /app/packages/stiglab-ui
 COPY packages/stiglab-ui/package.json packages/stiglab-ui/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
