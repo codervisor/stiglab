@@ -1,5 +1,5 @@
 # ---- Build ----
-FROM rust:1.85-bookworm AS builder
+FROM rust:1.86-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates/stiglab-core/Cargo.toml crates/stiglab-core/Cargo.toml
