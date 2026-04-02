@@ -15,7 +15,7 @@ services:
   server:
     build:
       context: .
-      dockerfile: docker/server.Dockerfile
+      dockerfile: docker/server/Dockerfile
     ports:
       - "3000:3000"
     depends_on:
@@ -28,7 +28,7 @@ services:
   agent:
     build:
       context: .
-      dockerfile: docker/agent.Dockerfile
+      dockerfile: docker/agent/Dockerfile
     depends_on:
       - server
     environment:

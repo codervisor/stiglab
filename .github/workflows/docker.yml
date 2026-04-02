@@ -25,9 +25,9 @@ jobs:
       matrix:
         include:
           - target: server
-            dockerfile: docker/server.Dockerfile
+            dockerfile: docker/server/Dockerfile
           - target: agent
-            dockerfile: docker/agent.Dockerfile
+            dockerfile: docker/agent/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
