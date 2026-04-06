@@ -93,19 +93,14 @@ async fn run_server(
 ) -> anyhow::Result<()> {
     let config = ServerConfig::from_env();
     tracing::info!("starting stiglab server on {}:{}", config.host, config.port);
-    tracing::info!("database: {}", config.database_url);
+    tracing::info!("database configured");
 
     let pool = db::init_pool(&config.database_url).await?;
     let state = AppState::new(pool.clone());
 
     // Start built-in runner if enabled
     if !no_runner {
-        let runner_node_name = node_name.unwrap_or_else(|| {
-            let hostname = hostname::get()
-                .map(|h| h.to_string_lossy().to_string())
-                .unwrap_or_else(|_| "localhost".to_string());
-            format!("{hostname}-master")
-        });
+        let runner_node_name = node_name.unwrap_or_else(|| "built-in-runner".to_string());
 
         tracing::info!(
             "built-in runner enabled: node={runner_node_name}, max_sessions={max_sessions}, command={agent_command}"

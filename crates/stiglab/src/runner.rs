@@ -12,8 +12,9 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use stiglab_agent::session::manager::SessionManager;
-use stiglab_core::{AgentMessage, Node, NodeStatus, ServerMessage, SessionState};
+use stiglab_core::{AgentMessage, Node, NodeStatus, ServerMessage};
 use stiglab_server::db;
+use stiglab_server::handler;
 use stiglab_server::state::{AgentConnection, AppState};
 use stiglab_server::AnyPool;
 
@@ -78,7 +79,16 @@ pub async fn start_built_in_runner(
         loop {
             interval.tick().await;
             let count = active_count.load(Ordering::Relaxed);
-            let _ = db::update_node_heartbeat(&heartbeat_pool, &heartbeat_node_id, count).await;
+            if let Err(e) =
+                db::update_node_heartbeat(&heartbeat_pool, &heartbeat_node_id, count).await
+            {
+                tracing::warn!(
+                    node_id = %heartbeat_node_id,
+                    active_sessions = count,
+                    error = ?e,
+                    "built-in runner: failed to update heartbeat"
+                );
+            }
         }
     });
 
@@ -115,44 +125,11 @@ pub async fn start_built_in_runner(
         }
     });
 
-    // Task: process outbound messages from SessionManager (same logic as ws/agent.rs)
+    // Task: process outbound messages from SessionManager using the shared handler
     let event_pool = pool.clone();
     tokio::spawn(async move {
         while let Some(msg) = outbound_rx.recv().await {
-            match msg {
-                AgentMessage::Heartbeat { active_sessions } => {
-                    let _ = db::update_node_heartbeat(&event_pool, &node_id, active_sessions).await;
-                }
-                AgentMessage::SessionStateChanged { session_id, state } => {
-                    if let Err(e) = db::update_session_state(&event_pool, &session_id, state).await
-                    {
-                        tracing::error!("built-in runner: failed to update session state: {e}");
-                    }
-                }
-                AgentMessage::SessionOutput { session_id, chunk } => {
-                    if let Err(e) =
-                        db::append_session_log(&event_pool, &session_id, &chunk, "stdout").await
-                    {
-                        tracing::error!("built-in runner: failed to append log: {e}");
-                    }
-                }
-                AgentMessage::SessionCompleted { session_id, output } => {
-                    let _ = db::update_session_state(&event_pool, &session_id, SessionState::Done)
-                        .await;
-                    if !output.is_empty() {
-                        let _ = db::append_session_log(&event_pool, &session_id, &output, "stdout")
-                            .await;
-                    }
-                }
-                AgentMessage::SessionFailed { session_id, error } => {
-                    let _ =
-                        db::update_session_state(&event_pool, &session_id, SessionState::Failed)
-                            .await;
-                    let _ =
-                        db::append_session_log(&event_pool, &session_id, &error, "stderr").await;
-                }
-                AgentMessage::Register(_) => {}
-            }
+            handler::handle_agent_message(&event_pool, &node_id, msg).await;
         }
     });
 

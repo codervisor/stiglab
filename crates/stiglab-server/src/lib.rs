@@ -1,5 +1,6 @@
 pub mod config;
 pub mod db;
+pub mod handler;
 pub mod routes;
 pub mod state;
 pub mod ws;

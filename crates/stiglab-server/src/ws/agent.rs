@@ -5,9 +5,10 @@ use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use uuid::Uuid;
 
-use stiglab_core::{AgentMessage, Node, NodeStatus, ServerMessage, SessionState};
+use stiglab_core::{AgentMessage, Node, NodeStatus, ServerMessage};
 
 use crate::db;
+use crate::handler;
 use crate::state::{AgentConnection, AppState};
 
 pub async fn agent_ws_handler(
@@ -92,44 +93,10 @@ async fn handle_agent_connection(socket: WebSocket, state: AppState) {
                 }
             }
 
-            AgentMessage::Heartbeat { active_sessions } => {
+            other => {
                 if let Some(ref nid) = node_id {
-                    if let Err(e) = db::update_node_heartbeat(&state.db, nid, active_sessions).await
-                    {
-                        tracing::error!("failed to update heartbeat: {e}");
-                    }
+                    handler::handle_agent_message(&state.db, nid, other).await;
                 }
-            }
-
-            AgentMessage::SessionStateChanged {
-                session_id,
-                state: new_state,
-            } => {
-                if let Err(e) = db::update_session_state(&state.db, &session_id, new_state).await {
-                    tracing::error!("failed to update session state: {e}");
-                }
-            }
-
-            AgentMessage::SessionOutput { session_id, chunk } => {
-                // O(1) append — insert a new log row instead of read-modify-write
-                if let Err(e) =
-                    db::append_session_log(&state.db, &session_id, &chunk, "stdout").await
-                {
-                    tracing::error!("failed to append session log: {e}");
-                }
-            }
-
-            AgentMessage::SessionCompleted { session_id, output } => {
-                let _ = db::update_session_state(&state.db, &session_id, SessionState::Done).await;
-                if !output.is_empty() {
-                    let _ = db::append_session_log(&state.db, &session_id, &output, "stdout").await;
-                }
-            }
-
-            AgentMessage::SessionFailed { session_id, error } => {
-                let _ =
-                    db::update_session_state(&state.db, &session_id, SessionState::Failed).await;
-                let _ = db::append_session_log(&state.db, &session_id, &error, "stderr").await;
             }
         }
     }
