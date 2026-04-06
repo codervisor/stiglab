@@ -1,74 +1,87 @@
-# CLAUDE.md
+# CLAUDE.md — codervisor project standards
 
-## Project
+This file defines shared conventions enforced across all codervisor repositories.
+It is synced from the [codervisor meta-repo](https://github.com/codervisor/codervisor) into each child project.
 
-Stiglab is a distributed AI agent session orchestration platform. Rust backend (Cargo workspace), React frontend (pnpm), Docker for deployment.
+## Repository overview
 
-## Build & Test
+codervisor is a suite of AI-agent infrastructure projects:
 
-```bash
-pnpm lint          # cargo fmt + clippy + eslint
-pnpm test          # cargo test --all
-pnpm build         # full release build (Rust + UI)
+| Repo | Stack | Purpose |
+|------|-------|---------|
+| stiglab | Rust + TypeScript | Distributed AI agent session orchestration |
+| synodic | TypeScript | AI harness governance framework |
+| telegramable | TypeScript | Telegram-first AI agent proxy |
+| ising | Rust | Code graph analysis engine |
+| skills | TOML / Markdown | Shared Claude Code skills |
+| lean-spec | Lean 4 | Formal specification framework |
+
+## Coding conventions
+
+### General
+
+- Write clear, self-documenting code. Add comments only where intent is non-obvious.
+- Prefer small, focused commits with descriptive messages (imperative mood, <72 chars).
+- Every PR must pass CI before merge. No force-pushing to `main`.
+- Keep dependencies minimal. Justify new crates / packages in the PR description.
+
+### Rust repos (stiglab, ising)
+
+- Edition: 2021 or later.
+- Format with `rustfmt` (default config unless `rustfmt.toml` is present).
+- Lint with `clippy` — treat warnings as errors in CI (`-D warnings`).
+- Use `thiserror` for library errors, `anyhow` for binary/application errors.
+- Prefer `#[must_use]` on functions returning values that should not be silently dropped.
+- Tests live next to the code in `#[cfg(test)]` modules; integration tests in `tests/`.
+
+### TypeScript repos (synodic, telegramable)
+
+- Target: ES2022+ / Node 20+.
+- Strict mode: `"strict": true` in `tsconfig.json`.
+- Lint with Biome (preferred) or ESLint. Format with Biome or Prettier.
+- Use named exports. Avoid `default` exports except for framework conventions.
+- Prefer `async/await` over raw Promises. Avoid `.then()` chains.
+- Tests use Vitest (preferred) or Jest. Co-locate test files as `*.test.ts`.
+
+### Lean repos (lean-spec)
+
+- Follow Mathlib conventions for naming and style.
+- Keep proofs tactic-mode where possible for readability.
+
+## Commit messages
+
+```
+<type>: <short summary in imperative mood>
+
+Optional body explaining *why*, not *what*.
 ```
 
-## Railway Deployment
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`, `perf`.
 
-Both services are deployed to Railway from the same repo. Configuration is done entirely via the Railway dashboard (not `railway.toml`) because Railway's config-as-code only supports one service per file and overrides dashboard settings — making it incompatible with multi-service monorepos sharing a root directory.
+## Branch naming
 
-### stiglab-server
+```
+<type>/<short-description>
+```
 
-| Setting | Value |
-|---------|-------|
-| Builder | Dockerfile |
-| Dockerfile path | `docker/server/Dockerfile` |
-| Start command | `/app/stiglab-server` |
-| Healthcheck path | `/api/health` |
-| Healthcheck timeout | 30s |
-| Restart policy | On failure (max 3) |
+Examples: `feat/session-pool`, `fix/auth-timeout`, `chore/update-deps`.
 
-Environment variables:
+## PR standards
 
-| Variable | Value |
-|----------|-------|
-| `STIGLAB_HOST` | `0.0.0.0` |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+- Title follows commit message format.
+- Description includes a **Summary** (what and why) and **Test plan** (how it was verified).
+- Keep PRs small and focused. Split large changes into stacked PRs.
+- Request review from at least one team member.
 
-`PORT` is auto-injected by Railway. The server reads `PORT` first, then `STIGLAB_PORT`, then defaults to `3000`.
+## Security
 
-### stiglab-agent
+- Never commit secrets, tokens, or credentials. Use environment variables.
+- Validate all external input at system boundaries.
+- Follow OWASP top-10 awareness for any web-facing code.
+- Pin CI action versions to full SHA, not tags.
 
-| Setting | Value |
-|---------|-------|
-| Builder | Dockerfile |
-| Dockerfile path | `docker/agent/Dockerfile` |
-| Start command | `/app/stiglab-agent` |
-| Restart policy | On failure (max 3) |
+## Dependencies
 
-Environment variables:
-
-| Variable | Value |
-|----------|-------|
-| `STIGLAB_SERVER_URL` | `wss://${{stiglab-server.RAILWAY_PUBLIC_DOMAIN}}/agent/ws` |
-| `STIGLAB_NODE_NAME` | `railway-agent` |
-| `STIGLAB_MAX_SESSIONS` | `4` |
-
-## Lessons
-
-### CI must validate what gets deployed, not just source code
-
-The Rust CI jobs use `dtolnay/rust-toolchain@stable` while the Dockerfiles pin a specific Rust version. These are two separate build environments. If CI only checks source code compilation but not the Docker build, version drift between the two goes undetected — code passes CI but the actual deployable artifact is broken.
-
-**Principle:** If the deployment artifact is a Docker image, the Docker build is a first-class CI check. Any build path that reaches production must be exercised in CI.
-
-### When fixing version mismatches, anchor to the known-working reference
-
-When a build fails due to a version being too old, don't increment and hope. Find the version that is already proven to work (e.g., the CI stable toolchain) and align to that directly. Iterating upward from a broken version wastes CI cycles and teaches you nothing — the failure mode is the same each time until you happen to cross the threshold.
-
-**Principle:** Fix version problems with evidence, not guesses. If stable works, use stable. If you must pin, pin to what's tested.
-
-### Railway config-as-code is per-service, not per-repo
-
-Railway's `railway.toml` defines configuration for a single service. It overrides dashboard settings and cannot be scoped to a specific service — every service sharing the same repo root reads the same file. For multi-service monorepos, this means `railway.toml` would force the same Dockerfile path, start command, etc. on all services. The fix is to skip `railway.toml` entirely and configure all services through the Railway dashboard.
-
-**Principle:** Read the platform docs before adopting config-as-code. A config file that silently overrides UI settings and can't distinguish between services is worse than no config file at all.
+- Rust: pin exact versions in `Cargo.toml` for binaries; use semver ranges for libraries.
+- TypeScript: use a lockfile (`package-lock.json` or `pnpm-lock.yaml`). Commit it.
+- Review dependency updates via Dependabot or Renovate PRs — don't auto-merge.
