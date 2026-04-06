@@ -6,8 +6,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  SERVER_IMAGE: ghcr.io/${{ github.repository }}/server
-  AGENT_IMAGE: ghcr.io/${{ github.repository }}/agent
 
 permissions:
   contents: read
@@ -15,15 +13,8 @@ permissions:
 
 jobs:
   build-and-push:
-    name: Build & Push Images
+    name: Build & Push Image
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - target: server
-            dockerfile: docker/server/Dockerfile
-          - target: agent
-            dockerfile: docker/agent/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -45,11 +36,11 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/${{ matrix.target }}:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository }}/${{ matrix.target }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64

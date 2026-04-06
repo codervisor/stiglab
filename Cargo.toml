@@ -3,6 +3,7 @@ members = [
     "crates/stiglab-core",
     "crates/stiglab-server",
     "crates/stiglab-agent",
+    "crates/stiglab",
 ]
 resolver = "2"
 
