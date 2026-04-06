@@ -131,13 +131,17 @@ pub async fn update_node_status(
 }
 
 pub async fn find_least_loaded_node(pool: &AnyPool) -> anyhow::Result<Option<Node>> {
+    // Exclude stale nodes (no heartbeat in last 2 minutes) to avoid dispatching
+    // to dead nodes whose hostname changed across redeploys.
+    let cutoff = (Utc::now() - chrono::Duration::seconds(120)).to_rfc3339();
     let row = sqlx::query_as::<_, NodeRow>(
         "SELECT id, name, hostname, status, max_sessions, active_sessions, last_heartbeat, registered_at
          FROM nodes
-         WHERE status = 'online' AND active_sessions < max_sessions
+         WHERE status = 'online' AND active_sessions < max_sessions AND last_heartbeat > $1
          ORDER BY CAST(active_sessions AS REAL) / CAST(max_sessions AS REAL) ASC
          LIMIT 1",
     )
+    .bind(&cutoff)
     .fetch_optional(pool)
     .await?;
     row.map(|r| r.try_into()).transpose()
