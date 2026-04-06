@@ -1,11 +1,8 @@
-mod config;
-mod connection;
-mod session;
-
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use config::AgentConfig;
+use stiglab_agent::config::AgentConfig;
+use stiglab_agent::connection;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

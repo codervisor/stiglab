@@ -1881,6 +1881,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "stiglab"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "clap",
+ "hostname",
+ "serde",
+ "serde_json",
+ "stiglab-agent",
+ "stiglab-core",
+ "stiglab-server",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "stiglab-agent"
 version = "0.1.0"
 dependencies = [
