@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "pages_tested": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "route": { "type": "string" },
+          "status": { "type": "string", "enum": ["PASS", "FAIL", "SKIP"] },
+          "notes": { "type": "string" }
+        },
+        "required": ["route", "status", "notes"]
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "crystallized": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["verdict", "summary", "pages_tested", "issues", "crystallized"]
+}
