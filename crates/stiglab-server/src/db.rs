@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use chrono::Utc;
+use sqlx::pool::PoolOptions;
 use sqlx::AnyPool;
 use stiglab_core::{Node, NodeStatus, Session, SessionState};
 
@@ -14,7 +17,10 @@ pub async fn init_pool(database_url: &str) -> anyhow::Result<AnyPool> {
     // Install drivers
     sqlx::any::install_default_drivers();
 
-    let pool = AnyPool::connect(database_url).await?;
+    let pool = PoolOptions::new()
+        .acquire_timeout(Duration::from_secs(10))
+        .connect(database_url)
+        .await?;
     run_migrations(&pool).await?;
     Ok(pool)
 }
