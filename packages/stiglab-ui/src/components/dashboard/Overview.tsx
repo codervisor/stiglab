@@ -44,20 +44,20 @@ export function Overview({ nodes, sessions }: OverviewProps) {
   ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
       {stats.map((stat) => (
         <Card key={stat.title} className={stat.highlight ? "border-yellow-500/50" : ""}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardHeader className="flex flex-row items-center justify-between px-3 pb-1 pt-3 md:px-6 md:pb-2 md:pt-6">
+            <CardTitle className="text-xs font-medium text-muted-foreground md:text-sm">
               {stat.title}
             </CardTitle>
             <stat.icon className={`h-4 w-4 ${stat.highlight ? "text-yellow-500" : "text-muted-foreground"}`} />
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${stat.highlight ? "text-yellow-500" : ""}`}>
+          <CardContent className="px-3 pb-3 md:px-6 md:pb-6">
+            <div className={`text-xl font-bold md:text-2xl ${stat.highlight ? "text-yellow-500" : ""}`}>
               {stat.value}
             </div>
-            <p className="text-xs text-muted-foreground">{stat.description}</p>
+            <p className="text-[10px] text-muted-foreground md:text-xs">{stat.description}</p>
           </CardContent>
         </Card>
       ))}

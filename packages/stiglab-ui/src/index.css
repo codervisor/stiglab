@@ -123,6 +123,8 @@
     }
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
     }
   html {
     @apply font-sans;

@@ -7,21 +7,21 @@ export function NodesPage() {
   const nodes = data?.nodes ?? []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Nodes</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">Nodes</h1>
+        <p className="text-sm text-muted-foreground">
           Manage registered agent nodes.
         </p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Registered Nodes</CardTitle>
+        <CardHeader className="px-4 md:px-6">
+          <CardTitle className="text-base md:text-lg">Registered Nodes</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 md:px-6">
           {isLoading ? (
-            <p className="text-muted-foreground py-8 text-center">Loading...</p>
+            <p className="py-8 text-center text-muted-foreground">Loading...</p>
           ) : (
             <NodeTable nodes={nodes} />
           )}
