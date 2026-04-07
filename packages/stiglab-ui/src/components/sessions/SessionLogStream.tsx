@@ -14,8 +14,8 @@ export function SessionLogStream({ sessionId }: SessionLogStreamProps) {
   }, [logs])
 
   return (
-    <div className="h-[400px] overflow-auto rounded-md border bg-black/50 p-4">
-      <pre className="font-mono text-sm text-green-400 whitespace-pre-wrap">
+    <div className="h-[60vh] max-h-[600px] min-h-[300px] overflow-auto rounded-md border bg-black/50 p-3 md:h-[400px] md:p-4">
+      <pre className="font-mono text-xs leading-relaxed text-green-400 whitespace-pre-wrap md:text-sm">
         {logs || "Waiting for output..."}
       </pre>
       <div ref={bottomRef} />

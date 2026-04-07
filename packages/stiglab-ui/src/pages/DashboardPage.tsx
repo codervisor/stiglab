@@ -12,10 +12,10 @@ export function DashboardPage() {
   const sessions = sessionsData?.sessions ?? []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
           Overview of your distributed agent sessions.
         </p>
       </div>
@@ -23,10 +23,10 @@ export function DashboardPage() {
       <Overview nodes={nodes} sessions={sessions} />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Recent Sessions</CardTitle>
+        <CardHeader className="px-4 md:px-6">
+          <CardTitle className="text-base md:text-lg">Recent Sessions</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 md:px-6">
           <SessionTable sessions={sessions.slice(0, 10)} />
         </CardContent>
       </Card>
