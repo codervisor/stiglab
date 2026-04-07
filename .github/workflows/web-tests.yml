@@ -195,7 +195,7 @@ jobs:
 
           Keep it cheap — only test what the diff touches.
           PROMPT
-          )" --max-turns 25 --allowedTools "Bash,Read,Write,Edit,Glob,Grep" --verbose 2>&1
+          )" --max-turns 25 --allowedTools "Bash,Read,Write,Edit,Glob,Grep" --dangerously-skip-permissions --verbose 2>&1
 
   # L2 triage: diagnose L1 failures on PRs
   l2-triage:
@@ -260,4 +260,4 @@ jobs:
           3. Determine: real regression, environment issue, or flaky test
           4. Report: which tests failed, what the page actually shows, suggested fix
           PROMPT
-          )" --max-turns 20 --allowedTools "Bash,Read,Glob,Grep" --verbose 2>&1
+          )" --max-turns 20 --allowedTools "Bash,Read,Glob,Grep" --dangerously-skip-permissions --verbose 2>&1
