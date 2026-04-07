@@ -72,30 +72,22 @@ impl SessionManager {
                 let sid = session_id.clone();
 
                 tokio::spawn(async move {
-                    // Wait for the NDJSON result (arrives before process exit)
-                    let ndjson_result = {
+                    // Remove the process from the map first so we don't hold
+                    // the lock across long awaits (blocks send_input/cancel).
+                    let mut proc = {
                         let mut sessions = sessions.write().await;
-                        if let Some(proc) = sessions.get_mut(&sid) {
-                            proc.take_ndjson_result().await
-                        } else {
-                            None
-                        }
+                        sessions.remove(&sid)
                     };
-
-                    // Reap the child process
-                    {
-                        let mut sessions = sessions.write().await;
-                        if let Some(proc) = sessions.get_mut(&sid) {
-                            let _ = proc.wait().await;
-                        }
-                    }
-
-                    // Clean up
-                    {
-                        let mut sessions = sessions.write().await;
-                        sessions.remove(&sid);
-                    }
                     active_count.fetch_sub(1, Ordering::Relaxed);
+
+                    // Await NDJSON result then reap the child — no lock held.
+                    let ndjson_result = if let Some(ref mut p) = proc {
+                        let result = p.take_ndjson_result().await;
+                        let _ = p.wait().await;
+                        result
+                    } else {
+                        None
+                    };
 
                     // Use NDJSON result; fall back to generic error if unavailable
                     match ndjson_result {
