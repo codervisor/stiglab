@@ -17,10 +17,14 @@ pub async fn init_pool(database_url: &str) -> anyhow::Result<AnyPool> {
     // Install drivers
     sqlx::any::install_default_drivers();
 
-    let pool = PoolOptions::new()
-        .acquire_timeout(Duration::from_secs(10))
-        .connect(database_url)
-        .await?;
+    let pool = tokio::time::timeout(
+        Duration::from_secs(10),
+        PoolOptions::new()
+            .acquire_timeout(Duration::from_secs(10))
+            .connect(database_url),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("timed out while connecting to database"))??;
     run_migrations(&pool).await?;
     Ok(pool)
 }
