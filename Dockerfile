@@ -38,7 +38,5 @@ COPY --from=rust-builder /app/target/release/stiglab /app/stiglab
 COPY --from=ui-builder /app/packages/stiglab-ui/dist /app/static
 ENV STIGLAB_STATIC_DIR=/app/static
 ENV STIGLAB_HOST=0.0.0.0
-ENV STIGLAB_PORT=3000
-EXPOSE 3000
 ENTRYPOINT ["/app/stiglab"]
 CMD ["server"]
