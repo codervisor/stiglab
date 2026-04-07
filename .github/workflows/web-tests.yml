@@ -169,7 +169,16 @@ jobs:
           exit 1
 
       - name: Install Claude Code
-        run: curl -fsSL https://claude.ai/install.sh | bash
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.claude/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Claude Code
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude --version
+          echo "CLAUDE_CODE_OAUTH_TOKEN is set: $([[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]] && echo yes || echo NO)"
 
       - name: Run L2 diff-scoped PR testing
         env:
@@ -186,7 +195,7 @@ jobs:
 
           Keep it cheap — only test what the diff touches.
           PROMPT
-          )" --max-turns 25 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"
+          )" --max-turns 25 --allowedTools "Bash,Read,Write,Edit,Glob,Grep" --verbose 2>&1
 
   # L2 triage: diagnose L1 failures on PRs
   l2-triage:
@@ -235,7 +244,9 @@ jobs:
           exit 1
 
       - name: Install Claude Code
-        run: curl -fsSL https://claude.ai/install.sh | bash
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.claude/bin" >> "$GITHUB_PATH"
 
       - name: Triage L1 failure
         env:
@@ -249,4 +260,4 @@ jobs:
           3. Determine: real regression, environment issue, or flaky test
           4. Report: which tests failed, what the page actually shows, suggested fix
           PROMPT
-          )" --max-turns 20 --allowedTools "Bash,Read,Glob,Grep"
+          )" --max-turns 20 --allowedTools "Bash,Read,Glob,Grep" --verbose 2>&1
