@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -141,22 +141,23 @@ jobs:
           npx vite preview --port 5173 &
           sleep 3
 
-      - name: Run L2 spec-based testing
+      - name: Run L2 diff-scoped PR testing
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            You are running L2 web UI tests for this PR.
+            Run L2 web UI tests for this PR. Follow .claude/skills/web-testing.md.
 
-            1. Read the L2 test spec: packages/stiglab-ui/tests/l2/spec.toml
-            2. Read the web-testing skill: .claude/skills/web-testing.md
-            3. Execute each route, flow, and invariant check using agent-browser
-               against http://localhost:5173
-            4. Read the PR diff and check for UI changes not covered by the spec
-            5. Post your results using the structured report format from the skill
+            Key rules — keep it cheap:
+            1. Read the PR diff FIRST. Only test what changed.
+            2. Read packages/stiglab-ui/tests/l2/spec.toml
+            3. Match diff files against spec `related_paths` — only run matching items
+            4. For diff-touched files NOT in the spec, do a quick exploratory check
+            5. Crystallize: if you validate new behavior, write an L1 test for it
+            6. Post structured results per the skill's report format
 
-            The dev server is running at http://localhost:5173 (static build).
-          claude_args: "--max-turns 30"
+            Server: http://localhost:5173 (static build, no backend API).
+          claude_args: "--max-turns 25"
 
   # L2 triage: Runs when L1 e2e fails on PRs
   l2-triage:
