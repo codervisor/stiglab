@@ -157,7 +157,21 @@ impl SessionProcess {
                 let mut completion_tx = Some(completion_tx);
                 let mut accumulated_output = String::new();
 
-                while let Ok(Some(line)) = lines.next_line().await {
+                loop {
+                    let line = match lines.next_line().await {
+                        Ok(Some(line)) => line,
+                        Ok(None) => break, // EOF
+                        Err(e) => {
+                            tracing::error!("stdout read error for session {}: {e}", sid);
+                            if let Some(ctx) = completion_tx.take() {
+                                let _ = ctx.send(NdjsonResult::Error {
+                                    error: format!("stdout read error: {e}"),
+                                });
+                            }
+                            return;
+                        }
+                    };
+
                     let event: ClaudeEvent = match serde_json::from_str(&line) {
                         Ok(e) => e,
                         Err(_) => {
