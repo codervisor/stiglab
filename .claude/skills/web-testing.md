@@ -1,112 +1,108 @@
 # web-testing
 
-L2 AI-driven web UI testing skill for Stiglab. Uses agent-browser CLI to
-verify the running UI against the L2 test spec, triage L1 failures, and
-validate new PR features.
+L2 AI-driven web UI testing for Stiglab. Runs on PRs only — validates new
+and changed UI surfaces using agent-browser against the L2 spec. Regression
+is L1's job (deterministic tests). L2 findings get crystallized into L1.
 
-## Spec-driven testing
-
-**Always start by reading the L2 spec:**
+## Spec
 
 ```
 packages/stiglab-ui/tests/l2/spec.toml
 ```
 
-This spec defines routes, flows, and invariants that must hold. Your job is
-to execute each applicable spec item using agent-browser and report results.
+Defines routes, flows, and invariants. Each item has `related_paths` — only
+run items whose related paths overlap with the PR diff.
 
-## When to use
+## When this runs
 
-- **PR opened/updated**: Run all route and invariant checks. Run flows if
-  the diff touches navigation or layout. Also inspect the diff for changes
-  not covered by the spec.
-- **L1 failure triage**: Run the spec items related to the failing test to
-  diagnose root cause.
-- **Manual invocation**: Run the full spec.
+- **PR (automatic via CI)**: Diff-scoped spec checks + exploratory on uncovered changes
+- **L1 triage (automatic via CI)**: Diagnose why an L1 test failed
+- **Manual**: When asked to test specific UI behavior
 
 ## Prerequisites
 
-- Dev server running: `pnpm dev` (or set `STIGLAB_TEST_URL`)
+- Dev server or preview server running
 - Chrome installed: `npx agent-browser install`
 
-## Execution procedure
+## Execution
 
-### 1. Read the spec
+### 1. Scope to the PR diff
 
-Parse `tests/l2/spec.toml`. Each section is a test item:
-- `[route.*]` — open the path, check `must_contain` / `must_not_contain`
-- `[flow.*]` — execute the steps sequentially with agent-browser
-- `[invariant.*]` — verify the property holds across all routes
+Read the diff. Match changed files against `related_paths` in the spec.
+Only run matching spec items — skip unrelated ones. This keeps L2 cheap.
 
-### 2. Execute with agent-browser
+### 2. Run matching spec items with agent-browser
 
 ```bash
-# Navigate
-npx agent-browser open "http://localhost:5173/"
-
-# Check page content
-npx agent-browser snapshot
-
-# Interactive elements (for flows)
-npx agent-browser snapshot -i
-
-# Interact
-npx agent-browser click "@e1"
-npx agent-browser fill "@e2" "value"
-
-# Verify
-npx agent-browser get title
-npx agent-browser get url
-npx agent-browser get text
-
-# Check for JS errors
-npx agent-browser evaluate "window.__stiglab_errors || []"
-
-# Screenshot evidence
+npx agent-browser open "http://localhost:5173<path>"
+npx agent-browser snapshot            # check must_contain / must_not_contain
+npx agent-browser snapshot -i         # for flow steps
+npx agent-browser click "@e1"         # interact
+npx agent-browser get url             # verify navigation
+npx agent-browser evaluate "..."      # check JS errors
 npx agent-browser screenshot --output /tmp/l2-<name>.png
-
-# Clean up
 npx agent-browser close
 ```
 
-### 3. On PRs, also check the diff
+### 3. Check diff for uncovered changes
 
-After running the spec, read the PR diff. If it touches UI files not covered
-by any spec item, do exploratory checks on those areas. Report any gaps.
+If the diff touches UI files not matched by any spec item, do a quick
+exploratory check (open the page, snapshot, look for obvious issues).
 
-### 4. Report results
+### 4. Crystallize findings into L1
 
-Use this structured format for every run:
+**This is the key output of L2.** When you validate behavior or find a bug:
+
+- **Validated behavior** → write a new L1 test in `tests/smoke/` or `tests/e2e/`
+  that encodes the expected behavior as a deterministic assertion.
+- **Bug found** → report it, and once fixed, write an L1 regression test.
+- **New spec item needed** → add it to `spec.toml` with `related_paths`.
+
+Example crystallization:
+```
+L2 finding: "Theme toggle switches class on <html> element"
+→ New L1 e2e test: tests/e2e/regression.test.ts
+   it("theme toggle switches html class", () => {
+     browser.open("/");
+     browser.click("@theme-toggle");
+     expect(browser.evaluate("document.documentElement.classList")).toContain("dark");
+   });
+```
+
+### 5. Report
 
 ```markdown
-## L2 Test Results
+## L2 Test Results — PR #N
 
-**Trigger**: PR #N / L1 triage / manual
+**Scope**: 3/4 routes, 1/3 flows (diff-matched)
 **Status**: PASS / FAIL / PARTIAL
 
-### Route checks
-| Route | Status | Notes |
-|-------|--------|-------|
-| / | PASS | All expected content present |
-| /sessions | PASS | |
-| /nodes | FAIL | "undefined" found in snapshot |
-
-### Flow checks
-| Flow | Status | Notes |
-|------|--------|-------|
-| sidebar_navigation | PASS | All nav transitions verified |
-| theme_toggle | PASS | |
-
-### Invariant checks
-| Invariant | Status | Notes |
+### Checks run
+| Spec item | Status | Notes |
 |-----------|--------|-------|
-| no_console_errors | PASS | |
-| graceful_api_failure | PASS | Shows empty states |
+| route.dashboard | PASS | |
+| flow.theme_toggle | PASS | |
 
-### Diff coverage
-- [x] All changed files covered by spec
-- [ ] `NewComponent.tsx` — not in spec, exploratory check: PASS
+### Skipped (not in diff)
+- route.nodes, flow.session_click_through
 
-### Issues found
+### Uncovered diff
+- `NewComponent.tsx` — exploratory: PASS
+
+### Crystallized
+- Added: tests/smoke/new-component.test.tsx (2 tests)
+
+### Issues
 - (none)
 ```
+
+## L1 triage mode
+
+When triggered by L1 failure:
+
+1. Read the failing test file to understand the assertion
+2. Open the relevant page with agent-browser
+3. Snapshot to see actual state vs expected
+4. Diagnose: real regression, environment issue, or flaky test
+5. If real regression → report with evidence + suggested fix
+6. Once fixed → the existing L1 test serves as the regression guard

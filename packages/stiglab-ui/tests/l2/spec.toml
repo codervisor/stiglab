@@ -1,48 +1,52 @@
-# L2 Web UI Test Specification
+# L2 Web UI Test Specification — PR Validation
 #
-# This file defines WHAT the AI must verify using agent-browser.
-# The AI decides HOW to verify each item. Results are posted as
-# PR comments with structured pass/fail per check.
+# This spec defines what the AI must verify on PRs using agent-browser.
+# It is NOT for regression — regression lives in L1 (crystallized tests).
+#
+# Lifecycle:
+#   1. PR arrives → L2 runs this spec against changed surfaces
+#   2. L2 finds issues → posts findings as PR comment
+#   3. Validated behavior → crystallize into L1 tests (via web-testing skill)
+#   4. L1 catches regressions going forward
 #
 # Spec types:
-#   [route.*]    — page-level checks (loads, renders key elements)
-#   [flow.*]     — multi-step user flows (navigation, interaction)
-#   [invariant.*] — properties that must always hold
-#
-# On PRs: the AI runs all specs + inspects the diff for untested changes.
-# On L1 failure: the AI runs the relevant spec to triage.
+#   [route.*]     — verify a page renders correctly after PR changes
+#   [flow.*]      — verify multi-step interactions still work
+#   [invariant.*] — properties that must hold on any page touched by the PR
 
 # ─── Routes ────────────────────────────────────────────────────
+# Check these only if the PR touches files related to the route.
 
 [route.dashboard]
 path = "/"
-title = "Dashboard"
+related_paths = ["src/pages/DashboardPage", "src/components/dashboard/"]
 must_contain = ["Nodes Online", "Active Sessions", "Waiting Input", "Completed", "Recent Sessions"]
 must_not_contain = ["undefined", "NaN", "Error"]
 
 [route.sessions]
 path = "/sessions"
-title = "Sessions list"
+related_paths = ["src/pages/SessionsPage", "src/components/sessions/"]
 must_contain = ["Sessions", "All Sessions"]
 must_not_contain = ["undefined", "NaN"]
 
 [route.session_detail]
 path = "/sessions/test-id"
-title = "Session detail (nonexistent)"
-# Should gracefully handle missing session
+related_paths = ["src/pages/SessionDetailPage", "src/components/sessions/"]
 must_contain_any = ["not found", "Not found", "Loading", "Session Details"]
 must_not_contain = ["Cannot read properties", "Uncaught", "undefined"]
 
 [route.nodes]
 path = "/nodes"
-title = "Nodes list"
+related_paths = ["src/pages/NodesPage", "src/components/nodes/"]
 must_contain = ["Nodes", "Registered Nodes"]
 must_not_contain = ["undefined", "NaN"]
 
 # ─── Flows ─────────────────────────────────────────────────────
+# Check these if the PR touches navigation, layout, or the involved components.
 
 [flow.sidebar_navigation]
 description = "Navigate between all pages using sidebar links"
+related_paths = ["src/components/layout/", "src/App.tsx"]
 steps = [
   "Open /",
   "Verify Dashboard content loads",
@@ -56,6 +60,7 @@ steps = [
 
 [flow.theme_toggle]
 description = "Toggle between light and dark themes"
+related_paths = ["src/components/layout/ThemeToggle", "src/components/providers/ThemeProvider"]
 steps = [
   "Open /",
   "Find and click theme toggle button",
@@ -66,6 +71,7 @@ steps = [
 
 [flow.session_click_through]
 description = "Click a session row to view its detail page"
+related_paths = ["src/components/sessions/SessionTable", "src/pages/SessionDetailPage"]
 steps = [
   "Open /sessions",
   "If sessions exist, click the first session link",
@@ -75,15 +81,16 @@ steps = [
 ]
 
 # ─── Invariants ────────────────────────────────────────────────
+# Always checked on every page the PR touches.
 
 [invariant.no_console_errors]
-description = "No uncaught errors or unhandled rejections on any page"
-check = "Visit each route and verify no JavaScript errors in console"
+description = "No uncaught errors or unhandled rejections"
+check = "Visit each PR-affected route, verify no JavaScript errors in console"
 
 [invariant.no_broken_layout]
-description = "All pages render without layout breakage"
-check = "Each route should have the sidebar/nav and main content area"
+description = "Layout integrity"
+check = "Each PR-affected route should have sidebar/nav and main content area"
 
 [invariant.graceful_api_failure]
-description = "UI degrades gracefully when API is unreachable"
-check = "Pages should show loading or empty states, not crash"
+description = "Graceful degradation when API is unreachable"
+check = "PR-affected pages show loading or empty states, not crash"
