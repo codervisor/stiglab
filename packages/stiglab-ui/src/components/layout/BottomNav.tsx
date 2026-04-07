@@ -1,4 +1,4 @@
-import { LayoutDashboard, Server, Terminal, Settings } from "lucide-react"
+import { LayoutDashboard, Server, Terminal } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 
@@ -6,7 +6,6 @@ const navItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/" },
   { title: "Sessions", icon: Terminal, path: "/sessions" },
   { title: "Nodes", icon: Server, path: "/nodes" },
-  { title: "Settings", icon: Settings, path: "/settings" },
 ]
 
 export function BottomNav() {
