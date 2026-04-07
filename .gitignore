@@ -33,3 +33,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Skills (installed via `npx skills add`)
+.agents/
