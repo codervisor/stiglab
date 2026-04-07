@@ -11,7 +11,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  # L1 Smoke: Fast component tests — runs on every PR
+  # ── L1: Deterministic regression tests ───────────────────────
+
+  # L1 component smoke: runs on every push and PR
   l1-smoke:
     name: "L1: Component Smoke Tests"
     runs-on: ubuntu-latest
@@ -33,9 +35,9 @@ jobs:
         working-directory: packages/stiglab-ui
         run: npx vitest run --config vitest.config.ts
 
-  # L1 E2E: Deterministic browser tests — runs on pre-release and main
+  # L1 e2e: full regression on main and pre-release
   l1-e2e:
-    name: "L1: E2E Regression Tests"
+    name: "L1: E2E Regression"
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -70,7 +72,7 @@ jobs:
           STIGLAB_TEST_URL: http://localhost:5173
         run: npx vitest run --config vitest.e2e.config.ts
 
-  # L1 E2E on PRs: Only smoke subset of e2e
+  # L1 e2e smoke subset on PRs
   l1-e2e-pr:
     name: "L1: E2E Smoke (PR)"
     runs-on: ubuntu-latest
@@ -107,11 +109,11 @@ jobs:
           STIGLAB_TEST_URL: http://localhost:5173
         run: npx vitest run --config vitest.e2e.config.ts tests/e2e/smoke.test.ts
 
-  # ── L2: AI-driven spec-based testing ──────────────────────────
+  # ── L2: AI-driven PR validation ──────────────────────────────
 
-  # L2 on PRs: Run spec checks + diff coverage for new features
+  # L2 on PRs: diff-scoped testing + crystallize into L1
   l2-pr:
-    name: "L2: AI Spec Testing (PR)"
+    name: "L2: AI PR Testing"
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     needs: [l1-smoke]
@@ -142,24 +144,23 @@ jobs:
           sleep 3
 
       - name: Run L2 diff-scoped PR testing
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            Run L2 web UI tests for this PR. Follow .claude/skills/web-testing.md.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx @anthropic-ai/claude-code -p "$(cat <<'PROMPT'
+          Run L2 web UI tests for this PR. Follow .claude/skills/web-testing.md.
 
-            Key rules — keep it cheap:
-            1. Read the PR diff FIRST. Only test what changed.
-            2. Read packages/stiglab-ui/tests/l2/spec.toml
-            3. Match diff files against spec `related_paths` — only run matching items
-            4. For diff-touched files NOT in the spec, do a quick exploratory check
-            5. Crystallize: if you validate new behavior, write an L1 test for it
-            6. Post structured results per the skill's report format
+          1. Read the PR diff (git diff origin/main...HEAD)
+          2. Map changed files to affected UI routes
+          3. Use agent-browser to test each affected page at http://localhost:5173
+          4. Crystallize: write L1 tests for any validated new behavior
+          5. Report results in the format from the skill
 
-            Server: http://localhost:5173 (static build, no backend API).
-          claude_args: "--max-turns 25"
+          Keep it cheap — only test what the diff touches.
+          PROMPT
+          )" --max-turns 25 --allowedTools "Bash,Read,Write,Edit,Glob,Grep"
 
-  # L2 triage: Runs when L1 e2e fails on PRs
+  # L2 triage: diagnose L1 failures on PRs
   l2-triage:
     name: "L2: Triage L1 Failure"
     runs-on: ubuntu-latest
@@ -191,21 +192,16 @@ jobs:
           npx vite preview --port 5173 &
           sleep 3
 
-      - name: Triage L1 failure with L2
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            L1 e2e tests failed on this PR. Your job is to triage.
+      - name: Triage L1 failure
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx @anthropic-ai/claude-code -p "$(cat <<'PROMPT'
+          L1 e2e tests failed on this PR. Triage the failure.
 
-            1. Read the L2 test spec: packages/stiglab-ui/tests/l2/spec.toml
-            2. Read the failing L1 test files in packages/stiglab-ui/tests/e2e/
-            3. Use agent-browser against http://localhost:5173 to reproduce the
-               failure and diagnose the root cause
-            4. Check if the failure is a real regression or a flaky/environment issue
-            5. Post a triage report as a PR comment with:
-               - Which L1 tests failed and why
-               - What the page actually shows (snapshot evidence)
-               - Whether this is a real bug or false positive
-               - Suggested fix if applicable
-          claude_args: "--max-turns 20"
+          1. Read the failing L1 tests in packages/stiglab-ui/tests/e2e/
+          2. Use agent-browser at http://localhost:5173 to reproduce and diagnose
+          3. Determine: real regression, environment issue, or flaky test
+          4. Report: which tests failed, what the page actually shows, suggested fix
+          PROMPT
+          )" --max-turns 20 --allowedTools "Bash,Read,Glob,Grep"
