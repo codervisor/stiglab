@@ -1,0 +1,89 @@
+# L2 Web UI Test Specification
+#
+# This file defines WHAT the AI must verify using agent-browser.
+# The AI decides HOW to verify each item. Results are posted as
+# PR comments with structured pass/fail per check.
+#
+# Spec types:
+#   [route.*]    — page-level checks (loads, renders key elements)
+#   [flow.*]     — multi-step user flows (navigation, interaction)
+#   [invariant.*] — properties that must always hold
+#
+# On PRs: the AI runs all specs + inspects the diff for untested changes.
+# On L1 failure: the AI runs the relevant spec to triage.
+
+# ─── Routes ────────────────────────────────────────────────────
+
+[route.dashboard]
+path = "/"
+title = "Dashboard"
+must_contain = ["Nodes Online", "Active Sessions", "Waiting Input", "Completed", "Recent Sessions"]
+must_not_contain = ["undefined", "NaN", "Error"]
+
+[route.sessions]
+path = "/sessions"
+title = "Sessions list"
+must_contain = ["Sessions", "All Sessions"]
+must_not_contain = ["undefined", "NaN"]
+
+[route.session_detail]
+path = "/sessions/test-id"
+title = "Session detail (nonexistent)"
+# Should gracefully handle missing session
+must_contain_any = ["not found", "Not found", "Loading", "Session Details"]
+must_not_contain = ["Cannot read properties", "Uncaught", "undefined"]
+
+[route.nodes]
+path = "/nodes"
+title = "Nodes list"
+must_contain = ["Nodes", "Registered Nodes"]
+must_not_contain = ["undefined", "NaN"]
+
+# ─── Flows ─────────────────────────────────────────────────────
+
+[flow.sidebar_navigation]
+description = "Navigate between all pages using sidebar links"
+steps = [
+  "Open /",
+  "Verify Dashboard content loads",
+  "Click Sessions link in sidebar",
+  "Verify URL changed to /sessions",
+  "Click Nodes link in sidebar",
+  "Verify URL changed to /nodes",
+  "Click Dashboard link in sidebar",
+  "Verify URL changed to /",
+]
+
+[flow.theme_toggle]
+description = "Toggle between light and dark themes"
+steps = [
+  "Open /",
+  "Find and click theme toggle button",
+  "Verify theme changed (class or attribute on html/body)",
+  "Click theme toggle again",
+  "Verify theme reverted",
+]
+
+[flow.session_click_through]
+description = "Click a session row to view its detail page"
+steps = [
+  "Open /sessions",
+  "If sessions exist, click the first session link",
+  "Verify navigation to /sessions/:id",
+  "Verify session detail content renders",
+  "If no sessions, verify empty state message",
+]
+
+# ─── Invariants ────────────────────────────────────────────────
+
+[invariant.no_console_errors]
+description = "No uncaught errors or unhandled rejections on any page"
+check = "Visit each route and verify no JavaScript errors in console"
+
+[invariant.no_broken_layout]
+description = "All pages render without layout breakage"
+check = "Each route should have the sidebar/nav and main content area"
+
+[invariant.graceful_api_failure]
+description = "UI degrades gracefully when API is unreachable"
+check = "Pages should show loading or empty states, not crash"

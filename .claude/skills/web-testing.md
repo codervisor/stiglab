@@ -1,106 +1,112 @@
 # web-testing
 
 L2 AI-driven web UI testing skill for Stiglab. Uses agent-browser CLI to
-interactively explore the running UI, triage L1 test failures, and validate
-new features on PRs.
+verify the running UI against the L2 test spec, triage L1 failures, and
+validate new PR features.
+
+## Spec-driven testing
+
+**Always start by reading the L2 spec:**
+
+```
+packages/stiglab-ui/tests/l2/spec.toml
+```
+
+This spec defines routes, flows, and invariants that must hold. Your job is
+to execute each applicable spec item using agent-browser and report results.
 
 ## When to use
 
-- After L1 (deterministic) tests fail — to triage and diagnose the root cause
-- On PRs introducing new UI features — to exploratory-test unstable surfaces
-- When asked to verify a specific user flow end-to-end
-- When asked to check visual or interactive regressions
+- **PR opened/updated**: Run all route and invariant checks. Run flows if
+  the diff touches navigation or layout. Also inspect the diff for changes
+  not covered by the spec.
+- **L1 failure triage**: Run the spec items related to the failing test to
+  diagnose root cause.
+- **Manual invocation**: Run the full spec.
 
 ## Prerequisites
 
 - Dev server running: `pnpm dev` (or set `STIGLAB_TEST_URL`)
 - Chrome installed: `npx agent-browser install`
 
-## How to use agent-browser
+## Execution procedure
 
-agent-browser is a CLI tool. Run commands via shell:
+### 1. Read the spec
+
+Parse `tests/l2/spec.toml`. Each section is a test item:
+- `[route.*]` — open the path, check `must_contain` / `must_not_contain`
+- `[flow.*]` — execute the steps sequentially with agent-browser
+- `[invariant.*]` — verify the property holds across all routes
+
+### 2. Execute with agent-browser
 
 ```bash
-# Navigate to a page
+# Navigate
 npx agent-browser open "http://localhost:5173/"
 
-# Get page structure (accessibility tree)
+# Check page content
 npx agent-browser snapshot
 
-# Get interactive elements with refs (@e1, @e2, etc.)
+# Interactive elements (for flows)
 npx agent-browser snapshot -i
 
-# Interact with elements
+# Interact
 npx agent-browser click "@e1"
-npx agent-browser fill "@e2" "search text"
+npx agent-browser fill "@e2" "value"
 
-# Wait for content
-npx agent-browser wait --text "Dashboard" --timeout 10000
-
-# Take screenshot for visual check
-npx agent-browser screenshot --output /tmp/test-screenshot.png
-
-# Get page info
+# Verify
 npx agent-browser get title
 npx agent-browser get url
 npx agent-browser get text
+
+# Check for JS errors
+npx agent-browser evaluate "window.__stiglab_errors || []"
+
+# Screenshot evidence
+npx agent-browser screenshot --output /tmp/l2-<name>.png
+
+# Clean up
+npx agent-browser close
 ```
 
-## Testing workflow
+### 3. On PRs, also check the diff
 
-### Triage L1 failure
+After running the spec, read the PR diff. If it touches UI files not covered
+by any spec item, do exploratory checks on those areas. Report any gaps.
 
-1. Read the failing test to understand what it expected
-2. Open the relevant page with `agent-browser open`
-3. Take a snapshot to see the actual page state
-4. Compare expected vs actual — identify the discrepancy
-5. Check the DOM structure, network state, or console errors
-6. Report findings with concrete evidence (snapshots, screenshots)
+### 4. Report results
 
-### Exploratory test for new PR features
+Use this structured format for every run:
 
-1. Read the PR diff to understand what changed
-2. Open the affected pages with `agent-browser open`
-3. Navigate through the new/changed UI flows
-4. Verify: correct rendering, proper navigation, error states, empty states
-5. Test edge cases: rapid clicks, missing data, invalid routes
-6. Report any issues found with reproduction steps
+```markdown
+## L2 Test Results
 
-### Smoke verification
-
-1. Open each main route: `/`, `/sessions`, `/nodes`
-2. Verify page loads with expected headings and structure
-3. Check navigation between pages works
-4. Verify theme toggle works
-5. Check responsive layout indicators
-
-## Stiglab UI routes
-
-| Route | Page | Key elements |
-|-------|------|-------------|
-| `/` | Dashboard | Overview stats, Recent Sessions table |
-| `/sessions` | Sessions | All Sessions table with state badges |
-| `/sessions/:id` | Session Detail | Session metadata, output log stream |
-| `/nodes` | Nodes | Registered Nodes table with status badges |
-
-## Reporting format
-
-When reporting test results, use this format:
-
-```
-## Test Results: [scope]
-
+**Trigger**: PR #N / L1 triage / manual
 **Status**: PASS / FAIL / PARTIAL
 
-### Checks performed
-- [ ] Page loads correctly
-- [ ] Data renders as expected
-- [ ] Navigation works
-- [ ] Error states handled
+### Route checks
+| Route | Status | Notes |
+|-------|--------|-------|
+| / | PASS | All expected content present |
+| /sessions | PASS | |
+| /nodes | FAIL | "undefined" found in snapshot |
+
+### Flow checks
+| Flow | Status | Notes |
+|------|--------|-------|
+| sidebar_navigation | PASS | All nav transitions verified |
+| theme_toggle | PASS | |
+
+### Invariant checks
+| Invariant | Status | Notes |
+|-----------|--------|-------|
+| no_console_errors | PASS | |
+| graceful_api_failure | PASS | Shows empty states |
+
+### Diff coverage
+- [x] All changed files covered by spec
+- [ ] `NewComponent.tsx` — not in spec, exploratory check: PASS
 
 ### Issues found
-- [description + evidence]
-
-### Screenshots
-- [paths to any screenshots taken]
+- (none)
 ```
