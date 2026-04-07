@@ -143,12 +143,15 @@ jobs:
           npx vite preview --port 5173 &
           sleep 3
 
+      - name: Install Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
       - name: Run L2 diff-scoped PR testing
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
-          npx @anthropic-ai/claude-code -p "$(cat <<'PROMPT'
-          Run L2 web UI tests for this PR. Follow .claude/skills/web-testing.md.
+          claude -p "$(cat <<'PROMPT'
+          Run L2 web UI tests for this PR. Follow .claude/skills/web-testing/SKILL.md.
 
           1. Read the PR diff (git diff origin/main...HEAD)
           2. Map changed files to affected UI routes
@@ -192,11 +195,14 @@ jobs:
           npx vite preview --port 5173 &
           sleep 3
 
+      - name: Install Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
       - name: Triage L1 failure
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
-          npx @anthropic-ai/claude-code -p "$(cat <<'PROMPT'
+          claude -p "$(cat <<'PROMPT'
           L1 e2e tests failed on this PR. Triage the failure.
 
           1. Read the failing L1 tests in packages/stiglab-ui/tests/e2e/
