@@ -11,7 +11,7 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     pub fn from_env() -> Self {
-        let host = env::var("STIGLAB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let host = env::var("STIGLAB_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port = env::var("PORT")
             .ok()
             .and_then(|p| p.parse().ok())
