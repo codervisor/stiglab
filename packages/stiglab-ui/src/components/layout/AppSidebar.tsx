@@ -1,4 +1,4 @@
-import { LayoutDashboard, Server, Terminal, Settings } from "lucide-react"
+import { LayoutDashboard, Server, Terminal } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import {
   Sidebar,
@@ -18,7 +18,6 @@ const navItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/" },
   { title: "Nodes", icon: Server, path: "/nodes" },
   { title: "Sessions", icon: Terminal, path: "/sessions" },
-  { title: "Settings", icon: Settings, path: "/settings" },
 ]
 
 export function AppSidebar() {
