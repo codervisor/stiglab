@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, RwLock};
 
 use stiglab_core::{AgentMessage, Task};
 
-use super::process::SessionProcess;
+use super::process::{NdjsonResult, SessionProcess};
 
 pub struct SessionManager {
     max_sessions: u32,
@@ -72,14 +72,23 @@ impl SessionManager {
                 let sid = session_id.clone();
 
                 tokio::spawn(async move {
-                    let success = {
+                    // Wait for the NDJSON result (arrives before process exit)
+                    let ndjson_result = {
                         let mut sessions = sessions.write().await;
-                        if let Some(ref mut proc) = sessions.get_mut(&sid) {
-                            proc.wait().await.unwrap_or(false)
+                        if let Some(proc) = sessions.get_mut(&sid) {
+                            proc.take_ndjson_result().await
                         } else {
-                            false
+                            None
                         }
                     };
+
+                    // Reap the child process
+                    {
+                        let mut sessions = sessions.write().await;
+                        if let Some(proc) = sessions.get_mut(&sid) {
+                            let _ = proc.wait().await;
+                        }
+                    }
 
                     // Clean up
                     {
@@ -88,16 +97,27 @@ impl SessionManager {
                     }
                     active_count.fetch_sub(1, Ordering::Relaxed);
 
-                    if success {
-                        let _ = outbound_tx.send(AgentMessage::SessionCompleted {
-                            session_id: sid,
-                            output: String::new(),
-                        });
-                    } else {
-                        let _ = outbound_tx.send(AgentMessage::SessionFailed {
-                            session_id: sid,
-                            error: "process exited with non-zero status".to_string(),
-                        });
+                    // Use NDJSON result; fall back to generic error if unavailable
+                    match ndjson_result {
+                        Some(NdjsonResult::Success { output }) => {
+                            let _ = outbound_tx.send(AgentMessage::SessionCompleted {
+                                session_id: sid,
+                                output,
+                            });
+                        }
+                        Some(NdjsonResult::Error { error }) => {
+                            let _ = outbound_tx.send(AgentMessage::SessionFailed {
+                                session_id: sid,
+                                error,
+                            });
+                        }
+                        None => {
+                            let _ = outbound_tx.send(AgentMessage::SessionFailed {
+                                session_id: sid,
+                                error: "process exited without producing a result event"
+                                    .to_string(),
+                            });
+                        }
                     }
                 });
             }

@@ -21,6 +21,9 @@ pub async fn create_task(
         working_dir: request.working_dir.clone(),
         allowed_tools: request.allowed_tools.clone(),
         max_turns: request.max_turns,
+        model: request.model.clone(),
+        system_prompt: request.system_prompt.clone(),
+        permission_mode: request.permission_mode.clone(),
         created_at: Utc::now(),
     };
 
