@@ -10,11 +10,20 @@
     "build": "cargo build --release -p stiglab && pnpm --filter stiglab-ui build",
     "build:ui": "pnpm --filter stiglab-ui build",
     "lint": "cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && pnpm --filter stiglab-ui lint",
-    "test": "cargo test --all",
+    "test": "cargo test --all && pnpm --filter stiglab-ui test",
+    "test:ui": "pnpm --filter stiglab-ui test",
+    "test:e2e": "pnpm --filter stiglab-ui test:e2e",
+    "test:e2e:smoke": "pnpm --filter stiglab-ui test:e2e:smoke",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "agent-browser",
+      "msw"
+    ]
   }
 }

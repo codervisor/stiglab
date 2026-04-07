@@ -1,0 +1,104 @@
+name: Web UI Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # L1 Smoke: Fast component tests — runs on every PR
+  l1-smoke:
+    name: "L1: Component Smoke Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run L1 smoke tests
+        working-directory: packages/stiglab-ui
+        run: npx vitest run --config vitest.config.ts
+
+  # L1 E2E: Deterministic browser tests — runs on pre-release and main
+  l1-e2e:
+    name: "L1: E2E Regression Tests"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chrome for agent-browser
+        run: npx agent-browser install --with-deps
+
+      - name: Build UI
+        run: pnpm build:ui
+
+      - name: Start preview server
+        working-directory: packages/stiglab-ui
+        run: |
+          npx vite preview --port 5173 &
+          sleep 3
+
+      - name: Run L1 e2e tests
+        working-directory: packages/stiglab-ui
+        env:
+          STIGLAB_TEST_URL: http://localhost:5173
+        run: npx vitest run --config vitest.e2e.config.ts
+
+  # L1 E2E on PRs: Only smoke subset of e2e
+  l1-e2e-pr:
+    name: "L1: E2E Smoke (PR)"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chrome for agent-browser
+        run: npx agent-browser install --with-deps
+
+      - name: Build UI
+        run: pnpm build:ui
+
+      - name: Start preview server
+        working-directory: packages/stiglab-ui
+        run: |
+          npx vite preview --port 5173 &
+          sleep 3
+
+      - name: Run L1 e2e smoke tests
+        working-directory: packages/stiglab-ui
+        env:
+          STIGLAB_TEST_URL: http://localhost:5173
+        run: npx vitest run --config vitest.e2e.config.ts tests/e2e/smoke.test.ts
