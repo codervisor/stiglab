@@ -11,6 +11,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::trace::TraceLayer;
 
 use config::ServerConfig;
 use state::AppState;
@@ -45,7 +46,10 @@ pub fn build_router(state: AppState, config: &ServerConfig) -> Router {
         CorsLayer::permissive()
     };
 
-    let mut app = api_routes.with_state(state).layer(cors);
+    let mut app = api_routes
+        .with_state(state)
+        .layer(cors)
+        .layer(TraceLayer::new_for_http());
 
     // Serve static UI files if configured
     if let Some(ref static_dir) = config.static_dir {
