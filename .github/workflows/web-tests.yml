@@ -184,6 +184,8 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          SCHEMA=$(cat packages/stiglab-ui/tests/l2-verdict-schema.json)
+
           claude -p "$(cat <<'PROMPT'
           Run L2 web UI tests for this PR. Follow .claude/skills/web-testing/SKILL.md.
 
@@ -191,18 +193,53 @@ jobs:
           2. Map changed files to affected UI routes
           3. Use agent-browser to test each affected page at http://localhost:5173
           4. Crystallize: write L1 tests for any validated new behavior
-          5. Report results in the format from the skill
+          5. Set verdict to PASS if all pages pass, FAIL if any fail
 
           Keep it cheap — only test what the diff touches.
-
-          IMPORTANT: Your very last line of output MUST be exactly one of:
-            VERDICT: PASS
-            VERDICT: FAIL
           PROMPT
-          )" --max-turns 25 --allowedTools "Bash,Read,Write,Edit,Glob,Grep" --dangerously-skip-permissions --output-format text 2>/dev/null | tee /tmp/l2-verdict.md
-          echo "## L2: AI PR Testing" >> "$GITHUB_STEP_SUMMARY"
-          cat /tmp/l2-verdict.md >> "$GITHUB_STEP_SUMMARY"
-          grep -q "^VERDICT: PASS" /tmp/l2-verdict.md
+          )" --max-turns 25 \
+            --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+            --dangerously-skip-permissions \
+            --output-format json \
+            --json-schema "$SCHEMA" \
+            > /tmp/l2-result.json 2>/dev/null
+
+          # Extract structured verdict
+          VERDICT=$(jq -r '.structured_output.verdict' /tmp/l2-result.json)
+          SUMMARY=$(jq -r '.structured_output.summary' /tmp/l2-result.json)
+
+          # Write job summary
+          {
+            echo "## L2: AI PR Testing"
+            echo ""
+            echo "**Verdict**: ${VERDICT}"
+            echo ""
+            echo "${SUMMARY}"
+            echo ""
+            echo "### Pages tested"
+            echo "| Route | Status | Notes |"
+            echo "|-------|--------|-------|"
+            jq -r '.structured_output.pages_tested[] | "| \(.route) | \(.status) | \(.notes) |"' /tmp/l2-result.json
+            echo ""
+            ISSUES=$(jq -r '.structured_output.issues | length' /tmp/l2-result.json)
+            if [ "$ISSUES" -gt 0 ]; then
+              echo "### Issues"
+              jq -r '.structured_output.issues[] | "- \(.)"' /tmp/l2-result.json
+              echo ""
+            fi
+            CRYSTALLIZED=$(jq -r '.structured_output.crystallized | length' /tmp/l2-result.json)
+            if [ "$CRYSTALLIZED" -gt 0 ]; then
+              echo "### Crystallized into L1"
+              jq -r '.structured_output.crystallized[] | "- \(.)"' /tmp/l2-result.json
+              echo ""
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Exit based on verdict
+          if [ "$VERDICT" != "PASS" ]; then
+            echo "::error::L2 testing verdict: ${VERDICT}"
+            exit 1
+          fi
 
   # L2 triage: diagnose L1 failures on PRs
   l2-triage:
@@ -259,14 +296,35 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          SCHEMA=$(cat packages/stiglab-ui/tests/l2-triage-schema.json)
+
           claude -p "$(cat <<'PROMPT'
           L1 e2e tests failed on this PR. Triage the failure.
 
           1. Read the failing L1 tests in packages/stiglab-ui/tests/e2e/
           2. Use agent-browser at http://localhost:5173 to reproduce and diagnose
-          3. Determine: real regression, environment issue, or flaky test
-          4. Report: which tests failed, what the page actually shows, suggested fix
+          3. For each failed test, determine: regression, flaky, or environment issue
+          4. Provide root cause and suggested fix
           PROMPT
-          )" --max-turns 20 --allowedTools "Bash,Read,Glob,Grep" --dangerously-skip-permissions --output-format text 2>/dev/null | tee /tmp/l2-triage.md
-          echo "## L2: Triage L1 Failure" >> "$GITHUB_STEP_SUMMARY"
-          cat /tmp/l2-triage.md >> "$GITHUB_STEP_SUMMARY"
+          )" --max-turns 20 \
+            --allowedTools "Bash,Read,Glob,Grep" \
+            --dangerously-skip-permissions \
+            --output-format json \
+            --json-schema "$SCHEMA" \
+            > /tmp/l2-triage.json 2>/dev/null
+
+          # Write job summary
+          {
+            echo "## L2: Triage L1 Failure"
+            echo ""
+            echo "### Failed tests"
+            echo "| Test | Diagnosis | Expected | Actual |"
+            echo "|------|-----------|----------|--------|"
+            jq -r '.structured_output.failed_tests[] | "| \(.test) | \(.diagnosis) | \(.expected) | \(.actual) |"' /tmp/l2-triage.json
+            echo ""
+            echo "### Root cause"
+            jq -r '.structured_output.root_cause' /tmp/l2-triage.json
+            echo ""
+            echo "### Suggested fix"
+            jq -r '.structured_output.suggested_fix' /tmp/l2-triage.json
+          } >> "$GITHUB_STEP_SUMMARY"
