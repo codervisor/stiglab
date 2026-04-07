@@ -9,9 +9,10 @@ async fn main() -> anyhow::Result<()> {
 
     let config = ServerConfig::from_env();
     tracing::info!("starting stiglab server on {}:{}", config.host, config.port);
-    tracing::info!("database configured");
 
+    tracing::info!("connecting to database...");
     let pool = db::init_pool(&config.database_url).await?;
+    tracing::info!("database connected");
     let state = AppState::new(pool);
     let app = build_router(state, &config);
 
