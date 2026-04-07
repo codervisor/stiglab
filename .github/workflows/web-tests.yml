@@ -7,8 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   # ── L1: Deterministic regression tests ───────────────────────
@@ -60,11 +59,18 @@ jobs:
       - name: Build UI
         run: pnpm build:ui
 
-      - name: Start preview server
+      - name: Wait for preview server
         working-directory: packages/stiglab-ui
         run: |
           npx vite preview --port 5173 &
-          sleep 3
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173 >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Preview server did not become ready within 30s" >&2
+          exit 1
 
       - name: Run L1 e2e tests
         working-directory: packages/stiglab-ui
@@ -97,11 +103,18 @@ jobs:
       - name: Build UI
         run: pnpm build:ui
 
-      - name: Start preview server
+      - name: Wait for preview server
         working-directory: packages/stiglab-ui
         run: |
           npx vite preview --port 5173 &
-          sleep 3
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173 >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Preview server did not become ready within 30s" >&2
+          exit 1
 
       - name: Run L1 e2e smoke tests
         working-directory: packages/stiglab-ui
@@ -115,10 +128,15 @@ jobs:
   l2-pr:
     name: "L2: AI PR Testing"
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.fork == false
     needs: [l1-smoke]
+    continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
@@ -137,11 +155,18 @@ jobs:
       - name: Build UI
         run: pnpm build:ui
 
-      - name: Start preview server
+      - name: Wait for preview server
         working-directory: packages/stiglab-ui
         run: |
           npx vite preview --port 5173 &
-          sleep 3
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173 >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Preview server did not become ready within 30s" >&2
+          exit 1
 
       - name: Install Claude Code
         run: curl -fsSL https://claude.ai/install.sh | bash
@@ -167,10 +192,17 @@ jobs:
   l2-triage:
     name: "L2: Triage L1 Failure"
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && failure()
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.fork == false &&
+      needs.l1-e2e-pr.result == 'failure'
     needs: [l1-e2e-pr]
+    continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
@@ -189,11 +221,18 @@ jobs:
       - name: Build UI
         run: pnpm build:ui
 
-      - name: Start preview server
+      - name: Wait for preview server
         working-directory: packages/stiglab-ui
         run: |
           npx vite preview --port 5173 &
-          sleep 3
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173 >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Preview server did not become ready within 30s" >&2
+          exit 1
 
       - name: Install Claude Code
         run: curl -fsSL https://claude.ai/install.sh | bash
