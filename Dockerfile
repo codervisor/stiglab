@@ -25,9 +25,12 @@ RUN mkdir -p crates/stiglab-core/src crates/stiglab-server/src crates/stiglab-ag
     && touch crates/stiglab-server/src/lib.rs \
     && touch crates/stiglab-agent/src/lib.rs \
     && cargo build --release -p stiglab 2>/dev/null || true
-# Copy actual source and rebuild
+# Copy actual source and rebuild.
+# Touch all .rs files so their mtime is newer than the dummy-build artifacts —
+# Docker's COPY preserves git timestamps which may predate the dummy build,
+# causing Cargo to skip recompilation and deploy the stub binary instead.
 COPY crates/ crates/
-RUN cargo build --release -p stiglab
+RUN find crates -name "*.rs" | xargs touch && cargo build --release -p stiglab
 
 # ---- Stage 3: Runtime ----
 FROM debian:bookworm-slim AS runtime
