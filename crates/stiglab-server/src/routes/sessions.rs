@@ -7,11 +7,21 @@ use futures_util::stream;
 use std::convert::Infallible;
 use std::time::Duration;
 
+use crate::auth::AuthUser;
 use crate::db;
 use crate::state::AppState;
 
-pub async fn list_sessions(State(state): State<AppState>) -> impl IntoResponse {
-    match db::list_sessions(&state.db).await {
+pub async fn list_sessions(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> impl IntoResponse {
+    let result = if auth_user.user_id == "anonymous" {
+        db::list_sessions(&state.db).await
+    } else {
+        db::list_sessions_for_user(&state.db, &auth_user.user_id).await
+    };
+
+    match result {
         Ok(sessions) => Json(serde_json::json!({ "sessions": sessions })).into_response(),
         Err(e) => {
             tracing::error!("failed to list sessions: {e}");
@@ -22,8 +32,22 @@ pub async fn list_sessions(State(state): State<AppState>) -> impl IntoResponse {
 
 pub async fn get_session(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
+    // Verify ownership if auth is enabled
+    if auth_user.user_id != "anonymous" {
+        if let Ok(Some(owner)) = db::get_session_owner(&state.db, &session_id).await {
+            if owner != auth_user.user_id {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({ "error": "access denied" })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
     match db::get_session(&state.db, &session_id).await {
         Ok(Some(session)) => {
             // Aggregate output from log chunks
@@ -66,8 +90,21 @@ pub async fn get_session(
 
 pub async fn session_logs(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
+    // Verify ownership if auth is enabled
+    if auth_user.user_id != "anonymous" {
+        if let Ok(Some(owner)) = db::get_session_owner(&state.db, &session_id).await {
+            if owner != auth_user.user_id {
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({ "error": "access denied" })),
+                ));
+            }
+        }
+    }
+
     // Verify session exists
     match db::get_session(&state.db, &session_id).await {
         Ok(None) => {

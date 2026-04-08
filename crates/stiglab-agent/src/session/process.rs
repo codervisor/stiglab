@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use serde::Deserialize;
 use std::process::Stdio;
@@ -85,6 +87,7 @@ impl SessionProcess {
         session_id: &str,
         agent_command: &str,
         outbound_tx: mpsc::UnboundedSender<AgentMessage>,
+        credentials: Option<&HashMap<String, String>>,
     ) -> Result<Self> {
         let mut cmd = Command::new(agent_command);
 
@@ -119,6 +122,13 @@ impl SessionProcess {
 
         if let Some(ref dir) = task.working_dir {
             cmd.current_dir(dir);
+        }
+
+        // Inject per-user credentials as environment variables
+        if let Some(creds) = credentials {
+            for (key, value) in creds {
+                cmd.env(key, value);
+            }
         }
 
         cmd.stdout(Stdio::piped())

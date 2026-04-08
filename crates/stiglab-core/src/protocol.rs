@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::node::NodeInfo;
@@ -34,8 +36,20 @@ pub enum AgentMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    Registered { node_id: String },
-    DispatchTask { task: Task, session_id: String },
-    CancelSession { session_id: String },
-    SendInput { session_id: String, input: String },
+    Registered {
+        node_id: String,
+    },
+    DispatchTask {
+        task: Box<Task>,
+        session_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        credentials: Option<HashMap<String, String>>,
+    },
+    CancelSession {
+        session_id: String,
+    },
+    SendInput {
+        session_id: String,
+        input: String,
+    },
 }
