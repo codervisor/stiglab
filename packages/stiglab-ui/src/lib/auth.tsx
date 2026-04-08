@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
-import { api, type User } from "./api"
+import { api, ApiError, type User } from "./api"
 
 interface AuthContextValue {
   user: User | null
@@ -32,10 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user)
         setAuthEnabled(data.auth_enabled)
       })
-      .catch(() => {
-        // 401 or network error — user is not authenticated
+      .catch((err) => {
         setUser(null)
-        setAuthEnabled(true) // Assume auth is enabled if /me fails with 401
+        // Only treat as "auth enabled" if the backend explicitly returned 401.
+        // Network errors or 404s (e.g. no backend running) mean auth is not available.
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthEnabled(true)
+        } else {
+          setAuthEnabled(false)
+        }
       })
       .finally(() => setLoading(false))
   }, [])
