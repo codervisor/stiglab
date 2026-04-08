@@ -14,7 +14,7 @@ lean-spec uses Markdown files with YAML frontmatter for metadata. We replace tha
 
 - **Status** → Issue state (open/closed) + status labels (`draft`, `planned`, `in-progress`)
 - **Priority** → Labels (`priority:critical`, `priority:high`, `priority:medium`, `priority:low`)
-- **Tags** → Labels (`area:core`, `area:ui`, `feat`, `fix`, `refactor`)
+- **Tags** → Labels (`area:core`, `area:ui`, `feat`, `fix`, `refactor`, `perf`)
 - **Dependencies** → Issue references (`depends on #42`) and sub-issues
 - **Parent/Child** → Sub-issues via `mcp__github__sub_issue_write`
 - **Transitions** → Issue timeline (automatic, auditable)
