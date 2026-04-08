@@ -1,6 +1,6 @@
 <!-- Issue body template for lean-spec style spec issues -->
 <!-- Title: spec(<area>): <short description> -->
-<!-- Labels: spec, <type>, <area>, priority:<level>, draft -->
+<!-- Labels: spec, <type>, area:<area>, priority:<level>, draft -->
 
 ## Overview
 
