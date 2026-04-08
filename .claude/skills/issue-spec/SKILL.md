@@ -1,165 +1,192 @@
 ---
 name: issue-spec
-description: "Create lean-spec style GitHub issues as formal specifications for human-AI aligned implementation. Use when asked to 'create a spec', 'write a spec issue', 'spec this feature', 'formalize this requirement', 'create an issue spec', or when planning work that needs a rigorous specification before implementation. Produces structured GitHub issues with formal preconditions, postconditions, invariants, and human-AI alignment boundaries."
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git diff:*), Bash(git log:*), Bash(git show:*), mcp__github__create_issue, mcp__github__list_issues, mcp__github__get_issue, mcp__github__search_issues
+description: "Create lean-spec style GitHub issues as specs for human-AI aligned implementation. Use when asked to 'create a spec', 'write a spec issue', 'spec this feature', 'spec this', or when planning work that needs a specification before implementation. Follows the lean-spec SDD methodology: small focused specs (<2000 tokens), intent over implementation, context economy. Produces GitHub issues with Overview, Design, Plan, Test, and Notes sections."
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git diff:*), Bash(git log:*), Bash(git show:*), mcp__github__create_issue, mcp__github__issue_write, mcp__github__issue_read, mcp__github__list_issues, mcp__github__search_issues, mcp__github__sub_issue_write, mcp__github__get_label
 ---
 
 # Issue Spec
 
-Create lean-spec style GitHub issues that serve as formal specifications for human-AI aligned implementation. Inspired by Lean 4's formal verification approach — every spec is a set of propositions that can be verified.
+Create GitHub issues as lean-spec style specifications for human-AI aligned implementation. Follows the [lean-spec](https://github.com/codervisor/lean-spec) SDD methodology.
 
 ## Philosophy
 
-Traditional GitHub issues describe *what* to build. Issue specs describe *what must be true* when the work is done. This shift from imperative ("add X") to declarative ("X holds") makes specs:
+Three principles from lean-spec govern every spec:
 
-- **Verifiable**: Each acceptance criterion is a testable proposition
-- **Unambiguous**: Formal structure eliminates interpretation gaps between human and AI
-- **Composable**: Specs reference each other like theorems reference lemmas
-- **Aligned**: Explicit boundaries between human decisions and AI-implementable work
+1. **Context Economy** — Keep specs under 2000 tokens. If a spec grows larger, split it into parent/child issues. Small specs produce better AI output and better human review.
+2. **Intent Over Implementation** — Document the *why* and *what*, not the *how*. Implementation details belong in PRs, not specs. The spec captures human intent that isn't in the code.
+3. **Living Documents** — Specs evolve. Start as `draft`, refine through `planned`, track through `in-progress`, close at `complete`. Status reflects reality.
 
 ## Setup
 
 | Parameter | Default | Example override |
 |-----------|---------|-----------------|
-| **Topic** | _(required)_ | `"add session timeout"`, `"fix node heartbeat race condition"` |
-| **Scope** | Inferred from topic + codebase | `"only stiglab-core crate"` |
-| **Depth** | `standard` | `minimal` (bug fix), `comprehensive` (architecture change) |
-| **Labels** | Auto-assigned by type | `"priority: high, area: core"` |
-| **Create on GitHub** | `true` (if MCP available) | `false` (output to file instead) |
+| **Topic** | _(required)_ | `"session timeout"`, `"fix heartbeat race"` |
+| **Scope** | Inferred from codebase | `"only stiglab-core"` |
+| **Priority** | `medium` | `critical`, `high`, `low` |
+| **Labels** | Auto from type + area | `"spec, feat, core"` |
+| **Parent** | None | `#42` (umbrella issue) |
+| **Publish to** | GitHub issue (if MCP available) | `file` (write to specs/ dir) |
 
-If the user says "spec session timeout", start immediately — analyze the codebase and draft the spec. Do not ask clarifying questions unless the topic is genuinely ambiguous.
+If the user says "spec session timeout", start immediately. Do not ask clarifying questions unless the topic is genuinely ambiguous.
 
 ## Workflow
 
 ```
-1. Understand    Analyze codebase context for the topic
-2. Formalize     Structure the spec using lean-spec format
-3. Align         Define human/AI boundaries
-4. Verify        Self-check the spec for completeness
-5. Publish       Create the GitHub issue or output to file
+1. Discover     Check existing specs and codebase context
+2. Design       Draft the spec using lean-spec format
+3. Align        Partition human decisions vs AI work
+4. Validate     Self-check before publishing
+5. Publish      Create GitHub issue or write to file
 ```
 
-### 1. Understand
+### 1. Discover
 
-Before writing anything, build context:
+Before writing anything, understand what exists:
 
-**Identify affected code:**
 ```
-- Grep for related types, functions, modules
-- Read key files that will be touched
+- Search existing issues for related/duplicate specs
+- Check specs/ directory for related specs
+- Grep codebase for types, functions, modules related to topic
+- Read key files that will be affected
 - Check git log for recent changes in the area
-- Look for existing specs in specs/ directory
-- Search existing GitHub issues for related work
 ```
 
-**Determine spec depth:**
-- `minimal` — Bug fixes, typos, small config changes. Just precondition/postcondition/verification.
-- `standard` — Features, refactors, integrations. Full spec with all sections.
-- `comprehensive` — Architecture changes, new subsystems, breaking changes. Full spec + migration plan + rollback strategy.
+If a related spec already exists, reference it as a dependency or parent — don't duplicate.
 
-### 2. Formalize
+### 2. Design
 
-Read [references/spec-format.md](references/spec-format.md) for the complete format specification.
+Read [references/spec-format.md](references/spec-format.md) for the section-by-section format guide.
 
-Draft the spec using the template:
+Draft the spec using the lean-spec structure:
 
-```bash
-# Reference the template while drafting
-cat {SKILL_DIR}/templates/issue-spec-template.md
+```markdown
+## Overview
+Problem statement and motivation. Why does this matter?
+
+## Design
+Technical approach: data flow, API changes, architecture decisions.
+Keep it high-level — intent, not implementation.
+
+## Plan
+- [ ] Checklist of concrete deliverables
+- [ ] Each item independently verifiable
+- [ ] Order reflects implementation sequence
+
+## Test
+- [ ] How to verify each plan item
+- [ ] Include: unit tests, integration tests, manual checks
+
+## Notes
+Open questions, context, references, tradeoffs considered.
 ```
 
-**Key principles for formalization:**
-
-- **Preconditions**: What must be true in the codebase *before* this work begins. Include version constraints, feature flags, dependencies.
-- **Postconditions**: What must be true *after* implementation. These become acceptance criteria. Write as testable propositions.
-- **Invariants**: Properties that must hold *throughout* — both during and after implementation. System properties that must not be violated.
-- **Interface contracts**: For any new or modified public APIs, specify the contract: input types, output types, error conditions, side effects.
-
-Every proposition should be verifiable — either by a test, a type check, a lint rule, or manual inspection.
+**Context economy check**: If the spec body exceeds ~2000 tokens, split it:
+- Extract large design sections into child issues
+- Use parent/child relationship (umbrella spec + focused children)
+- Each child spec should be independently implementable
 
 ### 3. Align
 
-The human-AI alignment section is critical. For each part of the spec, categorize:
+Add a **Human-AI Alignment** section (this extends lean-spec for collaborative development):
 
-**Human decides** (requires judgment, context, or authority):
-- Architectural tradeoffs and approach selection
-- Scope boundaries and priority
-- UX decisions and user-facing behavior
-- Security model and trust boundaries
-- Whether to proceed at all (go/no-go)
+```markdown
+## Alignment
 
-**AI implements** (given the spec, can be executed mechanically):
-- Code changes matching the postconditions
-- Test creation matching verification criteria
-- Documentation updates
-- Refactoring within defined boundaries
+### Human decides
+- [ ] Architectural tradeoffs, scope, UX, go/no-go
 
-**Joint verification** (both human and AI check):
-- Integration behavior matches expectations
-- Performance characteristics are acceptable
-- No unintended side effects on adjacent systems
+### AI implements
+- [ ] Concrete code tasks tied to Plan items
 
-Mark any open questions that block implementation with `DECISION NEEDED:` prefix.
+### Open questions
+> Items that block AI implementation until a human decides
+```
 
-### 4. Verify
+This section makes the handoff explicit. The AI knows exactly where to stop and ask, and the human knows what decisions are pending.
 
-Before publishing, self-check the spec:
+**Rules for alignment:**
+- Every Plan item should map to either "human decides" or "AI implements"
+- If an item requires both, split it — the decision part is human, the execution is AI
+- Open questions use `>` blockquotes so they're visually distinct
+- Once a human answers an open question, move the decision to "Human decides" with the answer
 
-- [ ] Every postcondition is testable (can write a test or check for it)
-- [ ] Preconditions reference actual current state (not assumed state)
-- [ ] Invariants are not violated by the proposed postconditions
-- [ ] No circular dependencies with other specs/issues
-- [ ] Human/AI boundaries are explicit — no ambiguous "figure it out" items in AI scope
-- [ ] Scope is bounded — the spec doesn't grow unboundedly
-- [ ] At least one verification method exists for each acceptance criterion
+### 4. Validate
+
+Before publishing, self-check:
+
+- [ ] Spec is under ~2000 tokens (context economy)
+- [ ] Overview explains *why*, not just *what*
+- [ ] Design captures intent, not implementation details
+- [ ] Plan items are concrete and independently verifiable
+- [ ] Test items map to Plan items
+- [ ] Human/AI boundaries are explicit — no "figure it out" items
+- [ ] No duplicate of an existing spec/issue
+- [ ] Dependencies are referenced (by issue number or spec name)
 
 ### 5. Publish
 
 **If GitHub MCP tools are available:**
 
-Create the issue with appropriate labels and formatting:
+Create the issue using `mcp__github__issue_write`:
 
 ```
 Title: spec(<area>): <short description>
-Labels: spec, <type>, <area>
+Labels: spec, <type>, <area>, priority:<level>
 ```
+
+Title format follows commit conventions: `spec(core): add session timeout`, `spec(ui): fix node status badge`.
+
+If this is a child spec, link it to the parent using `mcp__github__sub_issue_write`.
 
 **If GitHub MCP tools are not available:**
 
-Write the spec to a file:
+Write to `specs/NNN-<short-description>.md` where `NNN` is the next number in sequence. Include YAML frontmatter:
 
-```bash
-# Write to specs/ directory
-write specs/NNN-<short-description>.md
+```yaml
+---
+status: draft
+created: YYYY-MM-DD
+priority: <level>
+tags: [<area>, <type>]
+depends_on: []
+---
 ```
-
-Where `NNN` is the next number in the `specs/` sequence.
 
 **After publishing**, report to the user:
 - Issue number/URL (or file path)
-- Summary of key propositions
-- Any items marked `DECISION NEEDED:`
-- Suggested implementation order if multiple specs are related
+- Token count estimate (flag if over 2000)
+- Any open questions that need human decisions
+- Suggested parent/child relationships if splitting was needed
+
+## Spec Relationships
+
+Use two relationship types (from lean-spec):
+
+| Type | When to use | Example |
+|------|------------|---------|
+| **Parent/Child** | Large feature decomposed into pieces | `spec(server): session management` → children: timeout, retry, cleanup |
+| **Depends On** | Spec blocked until another finishes | `spec(ui): timeout warning` depends on `spec(core): timeout events` |
+
+**Decision rule**: Remove the dependency — does the spec still make sense? If no → parent/child. If yes but blocked → depends_on.
 
 ## Guidance
 
-- **Specs are not implementation plans.** A spec says *what must be true*, not *how to make it true*. Implementation details belong in the PR, not the spec. The exception is when a specific implementation approach is itself a requirement (e.g., "must use streaming, not polling").
-- **Start concrete, then generalize.** Write the specific postconditions first, then extract invariants. Don't start with abstract principles.
-- **Reference existing code.** Postconditions should reference actual types, functions, and modules — not abstract concepts. Use `file:line` notation.
-- **One spec per concern.** If a spec covers two independent changes, split it. Specs should be atomic — implementable and verifiable independently.
-- **Version your assumptions.** Preconditions pin the spec to a point in time. If the codebase changes, preconditions may no longer hold, and the spec needs revision.
-- **Don't over-formalize.** A bug fix doesn't need invariants and interface contracts. Match depth to complexity.
-- **Label open questions explicitly.** Anything that can't be resolved by reading the code needs a `DECISION NEEDED:` marker. These are the human alignment points — places where the AI must stop and ask.
-- **Compose specs like theorems.** Complex features should be broken into a chain of specs, where each spec's postconditions become the next spec's preconditions. Reference dependent specs by issue number.
+- **Small is better.** A 500-token spec that captures intent clearly beats a 3000-token spec that tries to cover everything. Split early.
+- **Discover first.** Always check what exists before creating. Duplicate specs create confusion.
+- **Status reflects reality.** Don't mark `planned` if decisions are still open. Don't mark `in-progress` until someone is actually working on it.
+- **One concern per spec.** If a spec covers two independent changes, split it into two specs with a shared parent.
+- **Reference code, not concepts.** Point to actual types, functions, files — not abstract ideas. Use `crates/stiglab-core/src/session.rs` not "the session module."
+- **Open questions are alignment points.** These are where AI must stop and ask a human. Make them explicit, specific, and include the impact of each decision.
+- **Specs complement, not replace, issues.** Regular bugs and small tasks don't need specs. Use specs when: multiple stakeholders need alignment, intent needs persistence, or the AI needs clear boundaries.
 
 ## References
 
 | Reference | When to Read |
 |-----------|--------------|
-| [references/spec-format.md](references/spec-format.md) | Always — defines the formal structure of every spec |
+| [references/spec-format.md](references/spec-format.md) | Always — section-by-section guide with examples |
 
 ## Templates
 
 | Template | Purpose |
 |----------|---------|
-| [templates/issue-spec-template.md](templates/issue-spec-template.md) | Base template for all issue specs — copy and fill in |
+| [templates/issue-spec-template.md](templates/issue-spec-template.md) | Copy and fill — covers standard spec depth |
