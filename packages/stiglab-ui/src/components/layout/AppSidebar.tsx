@@ -1,4 +1,4 @@
-import { LayoutDashboard, Server, Terminal } from "lucide-react"
+import { LayoutDashboard, Plus, Server, Terminal } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import {
   Sidebar,
@@ -13,6 +13,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "./ThemeToggle"
+import { CreateSessionSheet } from "@/components/sessions/CreateSessionSheet"
+import { Button } from "@/components/ui/button"
 
 const navItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/" },
@@ -48,6 +50,16 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <CreateSessionSheet>
+              <Button variant="outline" className="w-full justify-start gap-2">
+                <Plus className="h-4 w-4" />
+                <span>New Session</span>
+              </Button>
+            </CreateSessionSheet>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
