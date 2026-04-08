@@ -184,8 +184,10 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          set -euo pipefail
           SCHEMA=$(cat packages/stiglab-ui/tests/l2-verdict-schema.json)
 
+          echo "::group::Claude CLI execution"
           claude -p "$(cat <<'PROMPT'
           Run L2 web UI tests for this PR. Follow .claude/skills/web-testing/SKILL.md.
 
@@ -202,13 +204,33 @@ jobs:
             --dangerously-skip-permissions \
             --output-format json \
             --json-schema "$SCHEMA" \
-            > /tmp/l2-result.json 2>/dev/null
+            2>&1 | tee /tmp/l2-result.json
+          echo "::endgroup::"
 
-          # Extract structured verdict
-          VERDICT=$(jq -r '.structured_output.verdict' /tmp/l2-result.json)
-          SUMMARY=$(jq -r '.structured_output.summary' /tmp/l2-result.json)
+          echo "::group::Raw JSON output"
+          cat /tmp/l2-result.json
+          echo "::endgroup::"
 
-          # Write job summary
+          # Try structured_output first (--json-schema), fall back to .result
+          VERDICT=$(jq -r '.structured_output.verdict // empty' /tmp/l2-result.json 2>/dev/null || true)
+          if [ -z "$VERDICT" ]; then
+            echo "::warning::structured_output not found, falling back to .result"
+            jq -r '.result // "No result field found"' /tmp/l2-result.json > /tmp/l2-verdict.md 2>/dev/null || cat /tmp/l2-result.json > /tmp/l2-verdict.md
+            {
+              echo "## L2: AI PR Testing"
+              echo ""
+              cat /tmp/l2-verdict.md
+            } >> "$GITHUB_STEP_SUMMARY"
+            # Check for FAIL in freeform output
+            if grep -qi "FAIL" /tmp/l2-verdict.md; then
+              exit 1
+            fi
+            exit 0
+          fi
+
+          SUMMARY=$(jq -r '.structured_output.summary // ""' /tmp/l2-result.json)
+
+          # Write structured job summary
           {
             echo "## L2: AI PR Testing"
             echo ""
@@ -219,15 +241,15 @@ jobs:
             echo "### Pages tested"
             echo "| Route | Status | Notes |"
             echo "|-------|--------|-------|"
-            jq -r '.structured_output.pages_tested[] | "| \(.route) | \(.status) | \(.notes) |"' /tmp/l2-result.json
+            jq -r '.structured_output.pages_tested[]? | "| \(.route) | \(.status) | \(.notes) |"' /tmp/l2-result.json
             echo ""
-            ISSUES=$(jq -r '.structured_output.issues | length' /tmp/l2-result.json)
+            ISSUES=$(jq -r '.structured_output.issues | length' /tmp/l2-result.json 2>/dev/null || echo 0)
             if [ "$ISSUES" -gt 0 ]; then
               echo "### Issues"
               jq -r '.structured_output.issues[] | "- \(.)"' /tmp/l2-result.json
               echo ""
             fi
-            CRYSTALLIZED=$(jq -r '.structured_output.crystallized | length' /tmp/l2-result.json)
+            CRYSTALLIZED=$(jq -r '.structured_output.crystallized | length' /tmp/l2-result.json 2>/dev/null || echo 0)
             if [ "$CRYSTALLIZED" -gt 0 ]; then
               echo "### Crystallized into L1"
               jq -r '.structured_output.crystallized[] | "- \(.)"' /tmp/l2-result.json
@@ -296,8 +318,10 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          set -euo pipefail
           SCHEMA=$(cat packages/stiglab-ui/tests/l2-triage-schema.json)
 
+          echo "::group::Claude CLI execution"
           claude -p "$(cat <<'PROMPT'
           L1 e2e tests failed on this PR. Triage the failure.
 
@@ -311,16 +335,33 @@ jobs:
             --dangerously-skip-permissions \
             --output-format json \
             --json-schema "$SCHEMA" \
-            > /tmp/l2-triage.json 2>/dev/null
+            2>&1 | tee /tmp/l2-triage.json
+          echo "::endgroup::"
 
-          # Write job summary
+          echo "::group::Raw JSON output"
+          cat /tmp/l2-triage.json
+          echo "::endgroup::"
+
+          # Try structured_output first, fall back to .result
+          ROOT_CAUSE=$(jq -r '.structured_output.root_cause // empty' /tmp/l2-triage.json 2>/dev/null || true)
+          if [ -z "$ROOT_CAUSE" ]; then
+            echo "::warning::structured_output not found, falling back to .result"
+            {
+              echo "## L2: Triage L1 Failure"
+              echo ""
+              jq -r '.result // "No result field found"' /tmp/l2-triage.json 2>/dev/null || cat /tmp/l2-triage.json
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Write structured job summary
           {
             echo "## L2: Triage L1 Failure"
             echo ""
             echo "### Failed tests"
             echo "| Test | Diagnosis | Expected | Actual |"
             echo "|------|-----------|----------|--------|"
-            jq -r '.structured_output.failed_tests[] | "| \(.test) | \(.diagnosis) | \(.expected) | \(.actual) |"' /tmp/l2-triage.json
+            jq -r '.structured_output.failed_tests[]? | "| \(.test) | \(.diagnosis) | \(.expected) | \(.actual) |"' /tmp/l2-triage.json
             echo ""
             echo "### Root cause"
             jq -r '.structured_output.root_cause' /tmp/l2-triage.json
