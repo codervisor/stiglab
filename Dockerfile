@@ -31,7 +31,7 @@ RUN cargo build --release -p stiglab
 
 # ---- Stage 3: Runtime ----
 FROM debian:bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 libsqlite3-0 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=rust-builder /app/target/release/stiglab /app/stiglab
