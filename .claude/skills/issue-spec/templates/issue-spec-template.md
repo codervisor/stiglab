@@ -1,11 +1,12 @@
-<!-- lean-spec style issue spec template -->
+<!-- Issue body template for lean-spec style spec issues -->
 <!-- Title: spec(<area>): <short description> -->
-<!-- Labels: spec, <type: feat|fix|refactor|perf>, <area>, priority:<level> -->
+<!-- Labels: spec, <type>, <area>, priority:<level>, draft -->
 
 ## Overview
 
 <!-- Problem statement and motivation. 2-4 sentences.
-     Why does this matter? What's the impact of not doing it? -->
+     Why does this matter? What's the impact of not doing it?
+     Don't describe the solution here — that's Design's job. -->
 
 ## Design
 
@@ -17,6 +18,7 @@
 
 - [ ] <!-- Verb + concrete deliverable -->
 - [ ] <!-- Each item independently verifiable -->
+- [ ] <!-- Order reflects implementation sequence -->
 
 ## Test
 
@@ -32,11 +34,11 @@
 - [ ] <!-- Concrete task tied to plan items above -->
 
 ### Open questions
-<!-- Remove this section if none. Each question blocks implementation. -->
+<!-- Remove this subsection if none. Questions block draft → planned. -->
 
 > <!-- Question with enough context to answer -->
-> Impact: <!-- Which plan items are affected by the answer -->
+> Impact: <!-- Which plan items are affected -->
 
 ## Notes
 
-<!-- Tradeoffs, references, related specs/issues. Optional — omit if empty. -->
+<!-- Tradeoffs, related issues (#N), references. Omit section if empty. -->
