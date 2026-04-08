@@ -95,7 +95,7 @@ async fn run_migrations(pool: &AnyPool) -> anyhow::Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
-            github_id INTEGER NOT NULL UNIQUE,
+            github_id BIGINT NOT NULL UNIQUE,
             github_login TEXT NOT NULL,
             github_name TEXT,
             github_avatar_url TEXT,
@@ -150,6 +150,10 @@ async fn run_migrations(pool: &AnyPool) -> anyhow::Result<()> {
             .execute(pool)
             .await;
     }
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id)")
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -499,7 +503,7 @@ pub async fn get_auth_session(
 
     let user = User {
         id: row.user_id.clone(),
-        github_id: row.github_id as i64,
+        github_id: row.github_id,
         github_login: row.github_login,
         github_name: row.github_name,
         github_avatar_url: row.github_avatar_url,
@@ -738,7 +742,7 @@ impl TryFrom<SessionRow> for Session {
 #[derive(sqlx::FromRow)]
 struct UserRow {
     id: String,
-    github_id: i32,
+    github_id: i64,
     github_login: String,
     github_name: Option<String>,
     github_avatar_url: Option<String>,
@@ -752,7 +756,7 @@ impl TryFrom<UserRow> for User {
     fn try_from(row: UserRow) -> anyhow::Result<Self> {
         Ok(User {
             id: row.id,
-            github_id: row.github_id as i64,
+            github_id: row.github_id,
             github_login: row.github_login,
             github_name: row.github_name,
             github_avatar_url: row.github_avatar_url,
@@ -769,7 +773,7 @@ struct AuthSessionRow {
     expires_at: String,
     created_at: String,
     // User fields from join
-    github_id: i32,
+    github_id: i64,
     github_login: String,
     github_name: Option<String>,
     github_avatar_url: Option<String>,

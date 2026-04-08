@@ -37,13 +37,18 @@ pub async fn get_session(
 ) -> impl IntoResponse {
     // Verify ownership if auth is enabled
     if auth_user.user_id != "anonymous" {
-        if let Ok(Some(owner)) = db::get_session_owner(&state.db, &session_id).await {
-            if owner != auth_user.user_id {
+        match db::get_session_owner(&state.db, &session_id).await {
+            Ok(Some(owner)) if owner != auth_user.user_id => {
                 return (
                     StatusCode::FORBIDDEN,
                     Json(serde_json::json!({ "error": "access denied" })),
                 )
                     .into_response();
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("failed to verify session ownership: {e}");
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
             }
         }
     }
@@ -95,11 +100,19 @@ pub async fn session_logs(
 ) -> impl IntoResponse {
     // Verify ownership if auth is enabled
     if auth_user.user_id != "anonymous" {
-        if let Ok(Some(owner)) = db::get_session_owner(&state.db, &session_id).await {
-            if owner != auth_user.user_id {
+        match db::get_session_owner(&state.db, &session_id).await {
+            Ok(Some(owner)) if owner != auth_user.user_id => {
                 return Err((
                     StatusCode::FORBIDDEN,
                     Json(serde_json::json!({ "error": "access denied" })),
+                ));
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("failed to verify session ownership: {e}");
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": e.to_string() })),
                 ));
             }
         }

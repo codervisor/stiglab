@@ -82,20 +82,14 @@ pub struct GithubUser {
 }
 
 pub fn github_authorize_url(client_id: &str, redirect_uri: &str, state: &str) -> String {
-    format!(
-        "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&state={}&scope=read:user",
-        client_id,
-        urlencoding(redirect_uri),
-        state
-    )
-}
-
-fn urlencoding(s: &str) -> String {
-    s.replace(':', "%3A")
-        .replace('/', "%2F")
-        .replace('?', "%3F")
-        .replace('=', "%3D")
-        .replace('&', "%26")
+    let mut url = reqwest::Url::parse("https://github.com/login/oauth/authorize")
+        .expect("hardcoded GitHub OAuth authorize URL must be valid");
+    url.query_pairs_mut()
+        .append_pair("client_id", client_id)
+        .append_pair("redirect_uri", redirect_uri)
+        .append_pair("state", state)
+        .append_pair("scope", "read:user");
+    url.into()
 }
 
 pub async fn exchange_code(
@@ -140,7 +134,7 @@ pub async fn get_github_user(access_token: &str) -> anyhow::Result<GithubUser> {
     Ok(resp.json().await?)
 }
 
-/// Generate a random session token (URL-safe base64, 32 bytes of randomness).
+/// Generate a random session token (hex-encoded, 32 bytes of randomness).
 pub fn generate_session_token() -> String {
     let rng = SystemRandom::new();
     let mut bytes = [0u8; 32];
