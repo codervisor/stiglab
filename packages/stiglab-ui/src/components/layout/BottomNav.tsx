@@ -1,3 +1,4 @@
+import type { ComponentType, SVGProps } from "react"
 import { LayoutDashboard, Server, Terminal, Plus } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -12,7 +13,7 @@ const navItemsAfter = [
   { title: "Nodes", icon: Server, path: "/nodes" },
 ]
 
-function NavLink({ item }: { item: { title: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; path: string } }) {
+function NavLink({ item }: { item: { title: string; icon: ComponentType<SVGProps<SVGSVGElement>>; path: string } }) {
   const location = useLocation()
   const isActive =
     item.path === "/"
