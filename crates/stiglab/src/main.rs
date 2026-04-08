@@ -1,6 +1,6 @@
 mod runner;
 
-// cache-bust: force Docker layer invalidation
+// cache-bust: 2026-04-08b
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
