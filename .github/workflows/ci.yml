@@ -13,7 +13,7 @@ jobs:
     uses: codervisor/codervisor/.github/workflows/ci-rust.yml@main
 
   docker:
-    name: Docker Build
+    name: Docker Build & Smoke Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,5 +25,49 @@ jobs:
           context: .
           file: Dockerfile
           push: false
+          load: true
+          tags: stiglab:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Run container
+        run: |
+          docker run -d --name stiglab-ci \
+            -p 3000:3000 \
+            -e DATABASE_URL="sqlite:///tmp/stiglab-ci.db" \
+            -e STIGLAB_HOST=0.0.0.0 \
+            stiglab:ci server
+
+      - name: Wait for healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "Container healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Container did not become healthy within 30s"
+          docker logs stiglab-ci
+          exit 1
+
+      - name: Verify UI is served
+        run: |
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/)
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::UI not served (HTTP ${STATUS})"
+            exit 1
+          fi
+          echo "UI served OK (HTTP 200)"
+
+      - name: Verify API health response
+        run: |
+          HEALTH=$(curl -sf http://localhost:3000/api/health)
+          echo "Health response: ${HEALTH}"
+          echo "$HEALTH" | jq -e '.status' >/dev/null
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs stiglab-ci || true
+          docker rm -f stiglab-ci || true
