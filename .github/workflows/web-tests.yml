@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   # ── L1: Deterministic regression tests ───────────────────────
@@ -133,6 +132,9 @@ jobs:
   l2-pr:
     name: "L2: AI PR Testing"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.fork == false
@@ -294,9 +296,9 @@ jobs:
             echo "<sub>Posted by [L2 CI run](${RUN_URL}) • $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
           } > /tmp/l2-comment-final.md
 
-          # Find existing comment with marker (update in-place on re-runs)
-          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null | head -1 || true)
+          # Find existing comment with marker across all pages (update in-place on re-runs)
+          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null | tail -1 || true)
 
           if [ -n "$COMMENT_ID" ]; then
             gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments/${COMMENT_ID}" \
@@ -311,6 +313,9 @@ jobs:
   l2-triage:
     name: "L2: Triage L1 Failure"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
@@ -441,9 +446,9 @@ jobs:
             echo "<sub>Posted by [L2 triage CI run](${RUN_URL}) • $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
           } > /tmp/l2-triage-comment-final.md
 
-          # Find existing comment with marker (update in-place on re-runs)
-          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null | head -1 || true)
+          # Find existing comment with marker across all pages (update in-place on re-runs)
+          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null | tail -1 || true)
 
           if [ -n "$COMMENT_ID" ]; then
             gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments/${COMMENT_ID}" \
