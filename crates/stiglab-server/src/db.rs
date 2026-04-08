@@ -6,15 +6,23 @@ use sqlx::AnyPool;
 use stiglab_core::{Node, NodeStatus, Session, SessionState};
 
 pub async fn init_pool(database_url: &str) -> anyhow::Result<AnyPool> {
-    // Ensure the SQLite data directory exists if needed
-    if database_url.starts_with("sqlite://") {
+    // For SQLite: ensure parent directory exists and enable create-if-missing
+    let connect_url = if database_url.starts_with("sqlite://") {
         let path = database_url.trim_start_matches("sqlite://");
         if let Some(parent) = std::path::Path::new(path).parent() {
             if !parent.as_os_str().is_empty() {
                 tokio::fs::create_dir_all(parent).await?;
             }
         }
-    }
+        // Append mode=rwc so SQLx creates the file if it doesn't exist
+        if database_url.contains('?') {
+            format!("{database_url}&mode=rwc")
+        } else {
+            format!("{database_url}?mode=rwc")
+        }
+    } else {
+        database_url.to_string()
+    };
 
     // Install drivers
     sqlx::any::install_default_drivers();
@@ -23,7 +31,7 @@ pub async fn init_pool(database_url: &str) -> anyhow::Result<AnyPool> {
         Duration::from_secs(10),
         PoolOptions::new()
             .acquire_timeout(Duration::from_secs(10))
-            .connect(database_url),
+            .connect(&connect_url),
     )
     .await
     .map_err(|_| anyhow::anyhow!("timed out while connecting to database"))??;
