@@ -19,7 +19,7 @@ const KNOWN_CREDENTIALS = [
 ]
 
 export function SettingsPage() {
-  const { user } = useAuth()
+  const { user, authEnabled } = useAuth()
   const queryClient = useQueryClient()
   const [newCredName, setNewCredName] = useState("")
   const [newCredValue, setNewCredValue] = useState("")
@@ -62,8 +62,8 @@ export function SettingsPage() {
         </p>
       </div>
 
-      {/* Profile */}
-      {user && (
+      {/* Profile — only show when auth is enabled (not anonymous) */}
+      {authEnabled && user && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base md:text-lg">

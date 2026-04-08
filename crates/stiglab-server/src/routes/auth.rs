@@ -34,8 +34,10 @@ pub async fn github_login(State(state): State<AppState>) -> impl IntoResponse {
     let url = github_authorize_url(client_id, &callback_url, &csrf_state);
 
     // Set CSRF state in cookie
-    let cookie =
-        format!("stiglab_oauth_state={csrf_state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600");
+    let sec = secure_attr(config);
+    let cookie = format!(
+        "stiglab_oauth_state={csrf_state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600{sec}"
+    );
 
     ([(header::SET_COOKIE, cookie)], Redirect::temporary(&url)).into_response()
 }
@@ -120,10 +122,12 @@ pub async fn github_callback(
     tracing::info!("user logged in: {} ({})", user.github_login, user_id);
 
     // Set session cookie and clear CSRF cookie
-    let session_cookie =
-        format!("stiglab_session={session_token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000");
+    let sec = secure_attr(config);
+    let session_cookie = format!(
+        "stiglab_session={session_token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000{sec}"
+    );
     let clear_state_cookie =
-        "stiglab_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".to_string();
+        format!("stiglab_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{sec}");
 
     Response::builder()
         .status(StatusCode::FOUND)
@@ -163,7 +167,8 @@ pub async fn logout(
         let _ = db::delete_auth_session(&state.db, session_id).await;
     }
 
-    let clear_cookie = "stiglab_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+    let sec = secure_attr(&state.config);
+    let clear_cookie = format!("stiglab_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{sec}");
 
     (
         [(header::SET_COOKIE, clear_cookie)],
@@ -176,5 +181,18 @@ fn build_callback_url(config: &crate::config::ServerConfig) -> String {
         format!("{public_url}/api/auth/github/callback")
     } else {
         format!("http://localhost:{}/api/auth/github/callback", config.port)
+    }
+}
+
+/// Returns "; Secure" if the public URL uses HTTPS, empty string otherwise.
+fn secure_attr(config: &crate::config::ServerConfig) -> &'static str {
+    if config
+        .public_url
+        .as_deref()
+        .is_some_and(|u| u.starts_with("https://"))
+    {
+        "; Secure"
+    } else {
+        ""
     }
 }

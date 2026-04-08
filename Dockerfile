@@ -8,7 +8,7 @@ COPY packages/stiglab-ui/ ./
 RUN pnpm build
 
 # ---- Stage 2: Build Rust ----
-FROM rust:1.93-bookworm AS rust-builder
+FROM rust:1.94-bookworm AS rust-builder
 WORKDIR /app
 # Cache dependencies: copy manifests first
 COPY Cargo.toml Cargo.lock ./

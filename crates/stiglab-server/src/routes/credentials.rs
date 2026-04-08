@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
 
-use crate::auth::{encrypt_credential, generate_credential_key, AuthUser};
+use crate::auth::{encrypt_credential, AuthUser};
 use crate::db;
 use crate::state::AppState;
 
@@ -46,14 +46,15 @@ pub async fn set_credential(
     Path(name): Path<String>,
     Json(body): Json<SetCredentialBody>,
 ) -> impl IntoResponse {
-    // Get or generate credential key
-    let key = state
-        .config
-        .credential_key
-        .clone()
-        .unwrap_or_else(generate_credential_key);
+    let Some(ref key) = state.config.credential_key else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "credential storage not configured (set STIGLAB_CREDENTIAL_KEY)" })),
+        )
+            .into_response();
+    };
 
-    let encrypted = match encrypt_credential(&key, &body.value) {
+    let encrypted = match encrypt_credential(key, &body.value) {
         Ok(enc) => enc,
         Err(e) => {
             tracing::error!("failed to encrypt credential: {e}");
