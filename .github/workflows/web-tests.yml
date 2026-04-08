@@ -275,7 +275,7 @@ jobs:
       - name: Post L2 results to PR
         if: always() && !cancelled()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ ! -f /tmp/l2-comment.md ]; then
             echo "No L2 results to post"
@@ -285,6 +285,8 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           MARKER="<!-- l2-verdict -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          API_BASE="https://api.github.com/repos/${{ github.repository }}"
+          AUTH_HEADER="Authorization: Bearer ${GITHUB_TOKEN}"
 
           # Build final comment with marker and run link
           {
@@ -295,17 +297,20 @@ jobs:
             echo "<sub>Posted by [L2 CI run](${RUN_URL}) • $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
           } > /tmp/l2-comment-final.md
 
-          # Find existing comment with marker across all pages (update in-place on re-runs)
-          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null \
-            | grep -o '^[0-9]*$' | tail -1 || true)
+          BODY_JSON=$(jq -n --arg body "$(cat /tmp/l2-comment-final.md)" '{body: $body}')
+
+          # Find existing comment with marker
+          COMMENT_ID=$(curl -sf -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
+            "${API_BASE}/issues/${PR_NUMBER}/comments?per_page=100" \
+            | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | tail -1 || true)
 
           if [ -n "$COMMENT_ID" ]; then
-            gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments/${COMMENT_ID}" \
-              -X PATCH -F body=@/tmp/l2-comment-final.md
+            curl -sf -X PATCH -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
+              -d "$BODY_JSON" "${API_BASE}/issues/comments/${COMMENT_ID}" > /dev/null
             echo "Updated existing PR comment $COMMENT_ID"
           else
-            gh pr comment "$PR_NUMBER" --body-file /tmp/l2-comment-final.md
+            curl -sf -X POST -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
+              -d "$BODY_JSON" "${API_BASE}/issues/${PR_NUMBER}/comments" > /dev/null
             echo "Created new PR comment"
           fi
 
@@ -423,7 +428,7 @@ jobs:
       - name: Post triage results to PR
         if: always() && !cancelled()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ ! -f /tmp/l2-triage-comment.md ]; then
             echo "No triage results to post"
@@ -433,6 +438,8 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           MARKER="<!-- l2-triage -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          API_BASE="https://api.github.com/repos/${{ github.repository }}"
+          AUTH_HEADER="Authorization: Bearer ${GITHUB_TOKEN}"
 
           # Build final comment with marker and run link
           {
@@ -443,16 +450,19 @@ jobs:
             echo "<sub>Posted by [L2 triage CI run](${RUN_URL}) • $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
           } > /tmp/l2-triage-comment-final.md
 
-          # Find existing comment with marker across all pages (update in-place on re-runs)
-          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null \
-            | grep -o '^[0-9]*$' | tail -1 || true)
+          BODY_JSON=$(jq -n --arg body "$(cat /tmp/l2-triage-comment-final.md)" '{body: $body}')
+
+          # Find existing comment with marker
+          COMMENT_ID=$(curl -sf -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
+            "${API_BASE}/issues/${PR_NUMBER}/comments?per_page=100" \
+            | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | tail -1 || true)
 
           if [ -n "$COMMENT_ID" ]; then
-            gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments/${COMMENT_ID}" \
-              -X PATCH -F body=@/tmp/l2-triage-comment-final.md
+            curl -sf -X PATCH -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
+              -d "$BODY_JSON" "${API_BASE}/issues/comments/${COMMENT_ID}" > /dev/null
             echo "Updated existing PR comment $COMMENT_ID"
           else
-            gh pr comment "$PR_NUMBER" --body-file /tmp/l2-triage-comment-final.md
+            curl -sf -X POST -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
+              -d "$BODY_JSON" "${API_BASE}/issues/${PR_NUMBER}/comments" > /dev/null
             echo "Created new PR comment"
           fi
