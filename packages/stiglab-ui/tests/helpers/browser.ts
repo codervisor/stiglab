@@ -1,4 +1,5 @@
 import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 const EXEC_OPTIONS: ExecFileSyncOptions = {
   encoding: "utf-8",
@@ -12,15 +13,17 @@ const EXEC_OPTIONS: ExecFileSyncOptions = {
  */
 export class Browser {
   private baseUrl: string;
+  private session: string;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, session?: string) {
     this.baseUrl = baseUrl;
+    this.session = session ?? `e2e-${randomUUID().slice(0, 8)}`;
   }
 
   /** Run an agent-browser CLI command and return stdout. */
   private run(args: string[]): string {
     try {
-      return execFileSync("pnpm", ["exec", "agent-browser", ...args], EXEC_OPTIONS) as string;
+      return execFileSync("pnpm", ["exec", "agent-browser", "--session", this.session, ...args], EXEC_OPTIONS) as string;
     } catch (err) {
       const e = err as { stderr?: string; stdout?: string };
       throw new Error(
