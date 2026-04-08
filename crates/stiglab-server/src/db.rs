@@ -10,7 +10,9 @@ pub async fn init_pool(database_url: &str) -> anyhow::Result<AnyPool> {
     if database_url.starts_with("sqlite://") {
         let path = database_url.trim_start_matches("sqlite://");
         if let Some(parent) = std::path::Path::new(path).parent() {
-            tokio::fs::create_dir_all(parent).await?;
+            if !parent.as_os_str().is_empty() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
         }
     }
 
