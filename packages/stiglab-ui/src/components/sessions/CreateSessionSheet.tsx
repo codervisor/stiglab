@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react"
+import { type FormEvent, useState, type ReactElement } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { api, type TaskRequest } from "@/lib/api"
 import { useNodes } from "@/hooks/useNodes"
@@ -40,12 +40,13 @@ export function CreateSessionSheet({ children }: CreateSessionSheetProps) {
     },
   })
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!prompt.trim()) return
+    const validNodeId = onlineNodes.some((n) => n.id === nodeId) ? nodeId : ""
     mutation.mutate({
       prompt: prompt.trim(),
-      ...(nodeId && { node_id: nodeId }),
+      ...(validNodeId && { node_id: validNodeId }),
       ...(workingDir.trim() && { working_dir: workingDir.trim() }),
     })
   }
@@ -112,18 +113,18 @@ export function CreateSessionSheet({ children }: CreateSessionSheetProps) {
               {mutation.error instanceof Error ? mutation.error.message : "Failed to create session"}
             </p>
           )}
+
+          <SheetFooter>
+            <Button
+              type="submit"
+              disabled={!prompt.trim() || mutation.isPending}
+              className="w-full"
+              size="lg"
+            >
+              {mutation.isPending ? "Creating..." : "Create Session"}
+            </Button>
+          </SheetFooter>
         </form>
-        <SheetFooter>
-          <Button
-            type="submit"
-            disabled={!prompt.trim() || mutation.isPending}
-            onClick={handleSubmit}
-            className="w-full"
-            size="lg"
-          >
-            {mutation.isPending ? "Creating..." : "Create Session"}
-          </Button>
-        </SheetFooter>
       </SheetContent>
     </Sheet>
   )
