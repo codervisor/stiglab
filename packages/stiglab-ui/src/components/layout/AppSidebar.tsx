@@ -1,4 +1,4 @@
-import { LayoutDashboard, Plus, Server, Terminal } from "lucide-react"
+import { LayoutDashboard, Plus, Server, Terminal, Settings, LogOut } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import {
   Sidebar,
@@ -13,6 +13,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "./ThemeToggle"
+import { useAuth } from "@/lib/auth"
 import { CreateSessionSheet } from "@/components/sessions/CreateSessionSheet"
 import { Button } from "@/components/ui/button"
 
@@ -20,10 +21,12 @@ const navItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/" },
   { title: "Nodes", icon: Server, path: "/nodes" },
   { title: "Sessions", icon: Terminal, path: "/sessions" },
+  { title: "Settings", icon: Settings, path: "/settings" },
 ]
 
 export function AppSidebar() {
   const location = useLocation()
+  const { user, authEnabled, logout } = useAuth()
 
   return (
     <Sidebar>
@@ -63,7 +66,30 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-4">
+      <SidebarFooter className="border-t p-4 space-y-3">
+        {authEnabled && user && (
+          <div className="flex items-center gap-2">
+            {user.github_avatar_url && (
+              <img
+                src={user.github_avatar_url}
+                alt={user.github_login}
+                className="h-6 w-6 rounded-full"
+              />
+            )}
+            <span className="flex-1 truncate text-sm">
+              {user.github_name ?? user.github_login}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={logout}
+              title="Sign out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">v0.1.0</span>
           <ThemeToggle />

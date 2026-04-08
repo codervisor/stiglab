@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod handler;
@@ -7,7 +8,7 @@ pub mod ws;
 
 pub use sqlx::AnyPool;
 
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -28,7 +29,24 @@ pub fn build_router(state: AppState, config: &ServerConfig) -> Router {
             "/api/sessions/{id}/logs",
             get(routes::sessions::session_logs),
         )
-        .route("/agent/ws", get(ws::agent::agent_ws_handler));
+        .route("/agent/ws", get(ws::agent::agent_ws_handler))
+        // Auth routes
+        .route("/api/auth/github", get(routes::auth::github_login))
+        .route(
+            "/api/auth/github/callback",
+            get(routes::auth::github_callback),
+        )
+        .route("/api/auth/me", get(routes::auth::me))
+        .route("/api/auth/logout", post(routes::auth::logout))
+        // Credential routes
+        .route(
+            "/api/credentials",
+            get(routes::credentials::list_credentials),
+        )
+        .route(
+            "/api/credentials/{name}",
+            put(routes::credentials::set_credential).delete(routes::credentials::delete_credential),
+        );
 
     // Configure CORS
     let cors = if let Some(ref origin) = config.cors_origin {

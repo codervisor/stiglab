@@ -8,6 +8,9 @@ use stiglab_core::{AgentMessage, Task};
 
 use super::process::{NdjsonResult, SessionProcess};
 
+/// Credentials to inject as environment variables into the subprocess.
+pub type Credentials = Option<HashMap<String, String>>;
+
 pub struct SessionManager {
     max_sessions: u32,
     agent_command: String,
@@ -35,7 +38,12 @@ impl SessionManager {
         self.active_count.clone()
     }
 
-    pub async fn spawn_session(&mut self, task: Task, session_id: String) {
+    pub async fn spawn_session(
+        &mut self,
+        task: Task,
+        session_id: String,
+        credentials: Credentials,
+    ) {
         let count = self.active_count.load(Ordering::Relaxed);
         if count >= self.max_sessions {
             tracing::warn!(
@@ -56,6 +64,7 @@ impl SessionManager {
             &session_id,
             &self.agent_command,
             self.outbound_tx.clone(),
+            credentials.as_ref(),
         )
         .await
         {

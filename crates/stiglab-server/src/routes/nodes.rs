@@ -3,10 +3,11 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 
+use crate::auth::AuthUser;
 use crate::db;
 use crate::state::AppState;
 
-pub async fn list_nodes(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn list_nodes(State(state): State<AppState>, _auth_user: AuthUser) -> impl IntoResponse {
     match db::list_nodes(&state.db).await {
         Ok(nodes) => Json(serde_json::json!({ "nodes": nodes })).into_response(),
         Err(e) => {

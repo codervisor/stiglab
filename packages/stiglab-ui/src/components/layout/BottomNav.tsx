@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react"
-import { LayoutDashboard, Server, Terminal, Plus } from "lucide-react"
+import { LayoutDashboard, Server, Terminal, Settings, Plus } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { CreateSessionSheet } from "@/components/sessions/CreateSessionSheet"
@@ -11,6 +11,7 @@ const navItems = [
 
 const navItemsAfter = [
   { title: "Nodes", icon: Server, path: "/nodes" },
+  { title: "Settings", icon: Settings, path: "/settings" },
 ]
 
 function NavLink({ item }: { item: { title: string; icon: ComponentType<SVGProps<SVGSVGElement>>; path: string } }) {

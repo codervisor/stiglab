@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("connecting to database...");
     let pool = db::init_pool(&config.database_url).await?;
     tracing::info!("database connected");
-    let state = AppState::new(pool);
+    let state = AppState::new(pool, config.clone());
     let app = build_router(state, &config);
 
     let addr = format!("{}:{}", config.host, config.port);

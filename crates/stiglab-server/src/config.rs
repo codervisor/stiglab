@@ -7,6 +7,10 @@ pub struct ServerConfig {
     pub database_url: String,
     pub static_dir: Option<String>,
     pub cors_origin: Option<String>,
+    pub github_client_id: Option<String>,
+    pub github_client_secret: Option<String>,
+    pub credential_key: Option<String>,
+    pub public_url: Option<String>,
 }
 
 impl ServerConfig {
@@ -21,6 +25,10 @@ impl ServerConfig {
             env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./data/stiglab.db".to_string());
         let static_dir = env::var("STIGLAB_STATIC_DIR").ok();
         let cors_origin = env::var("STIGLAB_CORS_ORIGIN").ok();
+        let github_client_id = env::var("GITHUB_CLIENT_ID").ok();
+        let github_client_secret = env::var("GITHUB_CLIENT_SECRET").ok();
+        let credential_key = env::var("STIGLAB_CREDENTIAL_KEY").ok();
+        let public_url = env::var("STIGLAB_PUBLIC_URL").ok();
 
         ServerConfig {
             host,
@@ -28,6 +36,15 @@ impl ServerConfig {
             database_url,
             static_dir,
             cors_origin,
+            github_client_id,
+            github_client_secret,
+            credential_key,
+            public_url,
         }
+    }
+
+    /// Returns true if GitHub OAuth is configured (both client ID and secret are set).
+    pub fn auth_enabled(&self) -> bool {
+        self.github_client_id.is_some() && self.github_client_secret.is_some()
     }
 }

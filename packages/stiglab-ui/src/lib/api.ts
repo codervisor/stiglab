@@ -48,6 +48,19 @@ export interface TaskRequest {
   max_turns?: number;
 }
 
+export interface User {
+  id: string;
+  github_login: string;
+  github_name: string | null;
+  github_avatar_url: string | null;
+}
+
+export interface Credential {
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const api = {
   getNodes: () => request<{ nodes: Node[] }>('/nodes'),
   getSessions: () => request<{ sessions: Session[] }>('/sessions'),
@@ -58,4 +71,20 @@ export const api = {
       body: JSON.stringify(task),
     }),
   getHealth: () => request<{ status: string; version: string }>('/health'),
+  // Auth
+  getMe: () => request<{ user: User; auth_enabled: boolean }>('/auth/me'),
+  logout: () =>
+    request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+  // Credentials
+  getCredentials: () =>
+    request<{ credentials: Credential[] }>('/credentials'),
+  setCredential: (name: string, value: string) =>
+    request<{ ok: boolean }>(`/credentials/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    }),
+  deleteCredential: (name: string) =>
+    request<{ ok: boolean }>(`/credentials/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    }),
 };

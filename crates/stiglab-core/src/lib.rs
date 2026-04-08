@@ -4,6 +4,7 @@ pub mod node;
 pub mod protocol;
 pub mod session;
 pub mod task;
+pub mod user;
 
 pub use error::StiglabError;
 pub use event::Event;
@@ -11,6 +12,7 @@ pub use node::{Node, NodeInfo, NodeStatus};
 pub use protocol::{AgentMessage, ServerMessage};
 pub use session::{Session, SessionState};
 pub use task::{Task, TaskRequest};
+pub use user::User;
 
 #[cfg(test)]
 mod tests {

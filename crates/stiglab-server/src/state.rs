@@ -5,6 +5,8 @@ use axum::extract::ws::Message;
 use sqlx::AnyPool;
 use tokio::sync::{mpsc, RwLock};
 
+use crate::config::ServerConfig;
+
 pub type WsSender = mpsc::UnboundedSender<Message>;
 
 #[derive(Debug)]
@@ -18,13 +20,15 @@ pub struct AgentConnection {
 pub struct AppState {
     pub db: AnyPool,
     pub agents: Arc<RwLock<HashMap<String, AgentConnection>>>,
+    pub config: ServerConfig,
 }
 
 impl AppState {
-    pub fn new(db: AnyPool) -> Self {
+    pub fn new(db: AnyPool, config: ServerConfig) -> Self {
         AppState {
             db,
             agents: Arc::new(RwLock::new(HashMap::new())),
+            config,
         }
     }
 }

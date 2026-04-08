@@ -98,7 +98,7 @@ async fn run_server(
     tracing::info!("connecting to database...");
     let pool = db::init_pool(&config.database_url).await?;
     tracing::info!("database connected");
-    let state = AppState::new(pool.clone());
+    let state = AppState::new(pool.clone(), config.clone());
 
     // Start built-in runner if enabled
     if !no_runner {

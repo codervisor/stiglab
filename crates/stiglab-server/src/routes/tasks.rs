@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -7,11 +9,13 @@ use uuid::Uuid;
 
 use stiglab_core::{ServerMessage, Session, SessionState, Task, TaskRequest};
 
+use crate::auth::{decrypt_credential, AuthUser};
 use crate::db;
 use crate::state::AppState;
 
 pub async fn create_task(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(request): Json<TaskRequest>,
 ) -> impl IntoResponse {
     let task = Task {
@@ -90,17 +94,31 @@ pub async fn create_task(
         updated_at: Utc::now(),
     };
 
-    if let Err(e) = db::insert_session(&state.db, &session).await {
+    let user_id = if auth_user.user_id == "anonymous" {
+        None
+    } else {
+        Some(auth_user.user_id.as_str())
+    };
+
+    if let Err(e) = db::insert_session_with_user(&state.db, &session, user_id).await {
         tracing::error!("failed to insert session: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
+
+    // Fetch user credentials to pass to the agent
+    let credentials = if let Some(uid) = user_id {
+        fetch_user_credentials(&state, uid).await
+    } else {
+        None
+    };
 
     // Dispatch to agent via WebSocket
     let agents = state.agents.read().await;
     if let Some(agent) = agents.get(&target_node.id) {
         let msg = ServerMessage::DispatchTask {
-            task: task.clone(),
+            task: Box::new(task.clone()),
             session_id: session.id.clone(),
+            credentials,
         };
         if let Ok(json) = serde_json::to_string(&msg) {
             let _ = agent.sender.send(axum::extract::ws::Message::Text(json));
@@ -124,4 +142,38 @@ pub async fn create_task(
         })),
     )
         .into_response()
+}
+
+/// Fetch all user credentials, decrypt them, and return as a HashMap.
+async fn fetch_user_credentials(
+    state: &AppState,
+    user_id: &str,
+) -> Option<HashMap<String, String>> {
+    let key = state.config.credential_key.as_deref()?;
+
+    let encrypted_creds = db::get_all_user_credential_values(&state.db, user_id)
+        .await
+        .ok()?;
+
+    if encrypted_creds.is_empty() {
+        return None;
+    }
+
+    let mut result = HashMap::new();
+    for (name, encrypted_value) in encrypted_creds {
+        match decrypt_credential(key, &encrypted_value) {
+            Ok(value) => {
+                result.insert(name, value);
+            }
+            Err(e) => {
+                tracing::error!("failed to decrypt credential {name} for user {user_id}: {e}");
+            }
+        }
+    }
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }

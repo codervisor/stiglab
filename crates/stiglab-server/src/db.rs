@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::Utc;
 use sqlx::pool::PoolOptions;
 use sqlx::AnyPool;
-use stiglab_core::{Node, NodeStatus, Session, SessionState};
+use stiglab_core::{Node, NodeStatus, Session, SessionState, User};
 
 pub async fn init_pool(database_url: &str) -> anyhow::Result<AnyPool> {
     // For SQLite: ensure parent directory exists and enable create-if-missing
@@ -89,6 +89,67 @@ async fn run_migrations(pool: &AnyPool) -> anyhow::Result<()> {
     )
     .execute(pool)
     .await?;
+
+    // ── Auth tables ──
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            github_id INTEGER NOT NULL UNIQUE,
+            github_login TEXT NOT NULL,
+            github_name TEXT,
+            github_avatar_url TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS auth_sessions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id)")
+        .execute(pool)
+        .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_credentials (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            encrypted_value TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(user_id, name)
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    // Add user_id column to sessions if it doesn't exist.
+    // SQLite doesn't support IF NOT EXISTS on ALTER TABLE, so check first.
+    let has_user_id = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM pragma_table_info('sessions') WHERE name = 'user_id'",
+    )
+    .fetch_optional(pool)
+    .await;
+
+    // For SQLite: use pragma check; for Postgres: use information_schema
+    if matches!(has_user_id, Ok(None) | Err(_)) {
+        // Try the ALTER — ignore error if column already exists (Postgres)
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN user_id TEXT")
+            .execute(pool)
+            .await;
+    }
 
     Ok(())
 }
@@ -343,6 +404,267 @@ impl From<LogChunkWithSeqRow> for LogChunkWithSeq {
     }
 }
 
+// ── User CRUD ──
+
+pub async fn upsert_user(pool: &AnyPool, user: &User) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO users (id, github_id, github_login, github_name, github_avatar_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT(github_id) DO UPDATE SET
+            github_login = $3, github_name = $4, github_avatar_url = $5, updated_at = $7",
+    )
+    .bind(&user.id)
+    .bind(user.github_id)
+    .bind(&user.github_login)
+    .bind(&user.github_name)
+    .bind(&user.github_avatar_url)
+    .bind(user.created_at.to_rfc3339())
+    .bind(user.updated_at.to_rfc3339())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_user_by_github_id(pool: &AnyPool, github_id: i64) -> anyhow::Result<Option<User>> {
+    let row = sqlx::query_as::<_, UserRow>(
+        "SELECT id, github_id, github_login, github_name, github_avatar_url, created_at, updated_at FROM users WHERE github_id = $1",
+    )
+    .bind(github_id)
+    .fetch_optional(pool)
+    .await?;
+    row.map(|r| r.try_into()).transpose()
+}
+
+pub async fn get_user(pool: &AnyPool, user_id: &str) -> anyhow::Result<Option<User>> {
+    let row = sqlx::query_as::<_, UserRow>(
+        "SELECT id, github_id, github_login, github_name, github_avatar_url, created_at, updated_at FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+    row.map(|r| r.try_into()).transpose()
+}
+
+// ── Auth Session CRUD ──
+
+pub struct AuthSession {
+    pub id: String,
+    pub user_id: String,
+    pub user: User,
+    pub expires_at: chrono::DateTime<Utc>,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+pub async fn create_auth_session(
+    pool: &AnyPool,
+    session_id: &str,
+    user_id: &str,
+    expires_at: chrono::DateTime<Utc>,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO auth_sessions (id, user_id, expires_at, created_at) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(session_id)
+    .bind(user_id)
+    .bind(expires_at.to_rfc3339())
+    .bind(Utc::now().to_rfc3339())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_auth_session(
+    pool: &AnyPool,
+    session_id: &str,
+) -> anyhow::Result<Option<AuthSession>> {
+    let row = sqlx::query_as::<_, AuthSessionRow>(
+        "SELECT a.id, a.user_id, a.expires_at, a.created_at,
+                u.github_id, u.github_login, u.github_name, u.github_avatar_url,
+                u.created_at as user_created_at, u.updated_at as user_updated_at
+         FROM auth_sessions a JOIN users u ON a.user_id = u.id
+         WHERE a.id = $1",
+    )
+    .bind(session_id)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(row) = row else { return Ok(None) };
+
+    let expires_at = chrono::DateTime::parse_from_rfc3339(&row.expires_at)?.with_timezone(&Utc);
+    if expires_at < Utc::now() {
+        // Expired — clean up and return None
+        let _ = delete_auth_session(pool, session_id).await;
+        return Ok(None);
+    }
+
+    let user = User {
+        id: row.user_id.clone(),
+        github_id: row.github_id as i64,
+        github_login: row.github_login,
+        github_name: row.github_name,
+        github_avatar_url: row.github_avatar_url,
+        created_at: chrono::DateTime::parse_from_rfc3339(&row.user_created_at)?.with_timezone(&Utc),
+        updated_at: chrono::DateTime::parse_from_rfc3339(&row.user_updated_at)?.with_timezone(&Utc),
+    };
+
+    Ok(Some(AuthSession {
+        id: row.id,
+        user_id: row.user_id,
+        user,
+        expires_at,
+        created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)?.with_timezone(&Utc),
+    }))
+}
+
+pub async fn delete_auth_session(pool: &AnyPool, session_id: &str) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM auth_sessions WHERE id = $1")
+        .bind(session_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// ── User Credentials CRUD ──
+
+pub struct UserCredential {
+    pub name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub async fn set_user_credential(
+    pool: &AnyPool,
+    user_id: &str,
+    name: &str,
+    encrypted_value: &str,
+) -> anyhow::Result<()> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        "INSERT INTO user_credentials (id, user_id, name, encrypted_value, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $5)
+         ON CONFLICT(user_id, name) DO UPDATE SET encrypted_value = $4, updated_at = $5",
+    )
+    .bind(&id)
+    .bind(user_id)
+    .bind(name)
+    .bind(encrypted_value)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_user_credentials(
+    pool: &AnyPool,
+    user_id: &str,
+) -> anyhow::Result<Vec<UserCredential>> {
+    let rows = sqlx::query_as::<_, UserCredentialRow>(
+        "SELECT name, created_at, updated_at FROM user_credentials WHERE user_id = $1 ORDER BY name",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| UserCredential {
+            name: r.name,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+        .collect())
+}
+
+pub async fn get_user_credential_value(
+    pool: &AnyPool,
+    user_id: &str,
+    name: &str,
+) -> anyhow::Result<Option<String>> {
+    let row = sqlx::query_scalar::<_, String>(
+        "SELECT encrypted_value FROM user_credentials WHERE user_id = $1 AND name = $2",
+    )
+    .bind(user_id)
+    .bind(name)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+pub async fn get_all_user_credential_values(
+    pool: &AnyPool,
+    user_id: &str,
+) -> anyhow::Result<Vec<(String, String)>> {
+    let rows = sqlx::query_as::<_, CredentialKvRow>(
+        "SELECT name, encrypted_value FROM user_credentials WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.name, r.encrypted_value))
+        .collect())
+}
+
+pub async fn delete_user_credential(
+    pool: &AnyPool,
+    user_id: &str,
+    name: &str,
+) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM user_credentials WHERE user_id = $1 AND name = $2")
+        .bind(user_id)
+        .bind(name)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// ── Updated Session queries (user-scoped) ──
+
+pub async fn insert_session_with_user(
+    pool: &AnyPool,
+    session: &Session,
+    user_id: Option<&str>,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO sessions (id, task_id, node_id, state, prompt, output, working_dir, user_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+    )
+    .bind(&session.id)
+    .bind(&session.task_id)
+    .bind(&session.node_id)
+    .bind(session.state.to_string())
+    .bind(&session.prompt)
+    .bind(&session.output)
+    .bind(&session.working_dir)
+    .bind(user_id)
+    .bind(session.created_at.to_rfc3339())
+    .bind(session.updated_at.to_rfc3339())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn list_sessions_for_user(pool: &AnyPool, user_id: &str) -> anyhow::Result<Vec<Session>> {
+    let rows = sqlx::query_as::<_, SessionRow>(
+        "SELECT id, task_id, node_id, state, prompt, output, working_dir, created_at, updated_at FROM sessions WHERE user_id = $1 ORDER BY created_at DESC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    rows.into_iter().map(|r| r.try_into()).collect()
+}
+
+pub async fn get_session_owner(pool: &AnyPool, session_id: &str) -> anyhow::Result<Option<String>> {
+    let row = sqlx::query_scalar::<_, String>(
+        "SELECT user_id FROM sessions WHERE id = $1 AND user_id IS NOT NULL",
+    )
+    .bind(session_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
 // ── Row types for sqlx ──
 
 #[derive(sqlx::FromRow)]
@@ -411,4 +733,59 @@ impl TryFrom<SessionRow> for Session {
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)?.with_timezone(&Utc),
         })
     }
+}
+
+#[derive(sqlx::FromRow)]
+struct UserRow {
+    id: String,
+    github_id: i32,
+    github_login: String,
+    github_name: Option<String>,
+    github_avatar_url: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+impl TryFrom<UserRow> for User {
+    type Error = anyhow::Error;
+
+    fn try_from(row: UserRow) -> anyhow::Result<Self> {
+        Ok(User {
+            id: row.id,
+            github_id: row.github_id as i64,
+            github_login: row.github_login,
+            github_name: row.github_name,
+            github_avatar_url: row.github_avatar_url,
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)?.with_timezone(&Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)?.with_timezone(&Utc),
+        })
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct AuthSessionRow {
+    id: String,
+    user_id: String,
+    expires_at: String,
+    created_at: String,
+    // User fields from join
+    github_id: i32,
+    github_login: String,
+    github_name: Option<String>,
+    github_avatar_url: Option<String>,
+    user_created_at: String,
+    user_updated_at: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct UserCredentialRow {
+    name: String,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct CredentialKvRow {
+    name: String,
+    encrypted_value: String,
 }

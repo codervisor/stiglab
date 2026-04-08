@@ -105,13 +105,19 @@ pub async fn start_built_in_runner(
             };
 
             match server_msg {
-                ServerMessage::DispatchTask { task, session_id } => {
+                ServerMessage::DispatchTask {
+                    task,
+                    session_id,
+                    credentials,
+                } => {
                     tracing::info!(
                         "built-in runner: received task {} (session: {})",
                         task.id,
                         session_id
                     );
-                    session_manager.spawn_session(task, session_id).await;
+                    session_manager
+                        .spawn_session(*task, session_id, credentials)
+                        .await;
                 }
                 ServerMessage::CancelSession { session_id } => {
                     tracing::info!("built-in runner: cancelling session {session_id}");

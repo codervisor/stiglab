@@ -77,14 +77,20 @@ pub async fn connect_and_run(config: AgentConfig) -> Result<()> {
             ServerMessage::Registered { node_id } => {
                 tracing::info!("registered as node: {node_id}");
             }
-            ServerMessage::DispatchTask { task, session_id } => {
+            ServerMessage::DispatchTask {
+                task,
+                session_id,
+                credentials,
+            } => {
                 tracing::info!(
                     "received task: {} (session: {}) - {}",
                     task.id,
                     session_id,
                     &task.prompt[..task.prompt.len().min(50)]
                 );
-                session_manager.spawn_session(task, session_id).await;
+                session_manager
+                    .spawn_session(*task, session_id, credentials)
+                    .await;
             }
             ServerMessage::CancelSession { session_id } => {
                 tracing::info!("cancelling session: {session_id}");
