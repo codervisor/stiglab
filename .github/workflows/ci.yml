@@ -34,7 +34,7 @@ jobs:
         run: |
           docker run -d --name stiglab-ci \
             -p 3000:3000 \
-            -e DATABASE_URL="sqlite://stiglab-ci.db" \
+            -e DATABASE_URL="sqlite:///tmp/stiglab-ci.db" \
             -e STIGLAB_HOST=0.0.0.0 \
             stiglab:ci server
 
