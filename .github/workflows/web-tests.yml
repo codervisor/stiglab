@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   # ── L1: Deterministic regression tests ───────────────────────
@@ -132,10 +134,6 @@ jobs:
   l2-pr:
     name: "L2: AI PR Testing"
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.fork == false
@@ -315,10 +313,6 @@ jobs:
   l2-triage:
     name: "L2: Triage L1 Failure"
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
