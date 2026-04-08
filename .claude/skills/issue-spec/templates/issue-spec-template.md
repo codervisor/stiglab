@@ -1,91 +1,42 @@
-<!-- issue-spec template — lean-spec style formal specification -->
-<!-- Title format: spec(<area>): <short proposition in imperative mood> -->
-<!-- Labels: spec, <type: feat|fix|refactor|perf>, <area> -->
+<!-- lean-spec style issue spec template -->
+<!-- Title: spec(<area>): <short description> -->
+<!-- Labels: spec, <type: feat|fix|refactor|perf>, <area>, priority:<level> -->
 
-## Definitions
+## Overview
 
-<!-- Define domain terms, types, and concepts used in this spec.
-     Every non-obvious term below should be defined here or reference
-     where it's defined in the codebase. -->
+<!-- Problem statement and motivation. 2-4 sentences.
+     Why does this matter? What's the impact of not doing it? -->
 
-- **Term**: Definition referencing `crate::module::Type` where applicable
+## Design
 
-## Preconditions
+<!-- Technical approach at intent level.
+     Data flow, state changes, API surface — not line-by-line code.
+     Include what's explicitly OUT OF SCOPE. -->
 
-<!-- What must be true in the codebase RIGHT NOW for this spec to be
-     implementable. Each should be verifiable with a grep, file read,
-     or test run. -->
+## Plan
 
-- [ ] <!-- Precondition 1: verifiable assertion about current codebase state -->
-- [ ] <!-- Precondition 2 -->
+- [ ] <!-- Verb + concrete deliverable -->
+- [ ] <!-- Each item independently verifiable -->
 
-## Postconditions
+## Test
 
-<!-- What must be true AFTER implementation. These are your acceptance
-     criteria as testable propositions. Number them for cross-reference. -->
+- [ ] <!-- Test type: what to verify -->
+- [ ] <!-- Maps to plan items above -->
 
-### P1: <!-- Short name -->
-<!-- Testable proposition describing what holds after implementation -->
-
-### P2: <!-- Short name -->
-<!-- Testable proposition -->
-
-## Invariants
-
-<!-- Properties that must hold AT ALL TIMES — before, during, and after.
-     These are the strongest claims. Omit for minimal-depth specs. -->
-
-- **I1: <!-- Name -->** — <!-- Property that must never be violated -->
-- **I2: <!-- Name -->** — <!-- Property that must never be violated -->
-
-## Interface Contracts
-
-<!-- New or modified public APIs: functions, endpoints, messages, env vars.
-     Specify types, errors, side effects. Omit for minimal-depth specs. -->
-
-### <!-- New/Modified: API name -->
-```
-<!-- Type signature, endpoint spec, or message schema -->
-```
-
-## Dependencies
-
-<!-- Related specs, issues, and PRs -->
-
-- **Requires**: <!-- #N or none -->
-- **Blocked by**: <!-- #N or none -->
-- **Enables**: <!-- #N or none -->
-- **Related**: <!-- specs/NNN-*.md, docs, etc. -->
-
-## Human-AI Alignment
+## Alignment
 
 ### Human decides
-<!-- Architectural choices, tradeoffs, UX, security model, scope -->
-- [ ] <!-- Decision that requires human judgment -->
+- [ ] <!-- Decision requiring judgment, context, or authority -->
 
 ### AI implements
-<!-- Concrete tasks executable given the spec and human decisions above -->
-- [ ] <!-- Implementation task matching a postcondition -->
+- [ ] <!-- Concrete task tied to plan items above -->
 
-### Joint verification
-<!-- Items that both human and AI should review together -->
-- [ ] <!-- Behavior or property that needs collaborative review -->
+### Open questions
+<!-- Remove this section if none. Each question blocks implementation. -->
 
-## Verification
+> <!-- Question with enough context to answer -->
+> Impact: <!-- Which plan items are affected by the answer -->
 
-<!-- How each postcondition and invariant is proven to hold -->
+## Notes
 
-| Proposition | Method | Location |
-|-------------|--------|----------|
-| P1 | <!-- unit test / integration test / type check / manual --> | <!-- file path --> |
-| P2 | <!-- method --> | <!-- file path --> |
-| I1 | <!-- method --> | <!-- file path --> |
-
-## Open Questions
-
-<!-- Unresolved decisions that block implementation.
-     Remove this section if there are none. -->
-
-> **DECISION NEEDED:** <!-- Question -->
->
-> Impact: <!-- Which postconditions/invariants are affected -->
+<!-- Tradeoffs, references, related specs/issues. Optional — omit if empty. -->
