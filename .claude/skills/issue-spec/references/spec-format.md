@@ -1,38 +1,62 @@
 # Spec Format Reference
 
-Section-by-section guide for writing lean-spec style issue specs. Based on the [lean-spec SDD methodology](https://github.com/codervisor/lean-spec).
+Section-by-section guide for writing lean-spec style GitHub issue specs. Based on the [lean-spec SDD methodology](https://github.com/codervisor/lean-spec), adapted to use GitHub issues as the sole spec medium.
 
-## Frontmatter (file specs only)
+## Metadata via GitHub Issue Features
 
-When writing specs to files (not GitHub issues), include YAML frontmatter:
+No YAML frontmatter — all metadata lives in native GitHub features:
 
-```yaml
----
-status: draft          # draft | planned | in-progress | complete | archived
-created: 2026-04-08
-priority: high         # critical | high | medium | low
-tags: [core, feat]     # area + type tags
-depends_on: []         # list of spec numbers or issue numbers
----
-```
+| lean-spec field | GitHub equivalent | Example |
+|----------------|-------------------|---------|
+| `status` | Labels | `draft`, `planned`, `in-progress` |
+| `priority` | Labels | `priority:high` |
+| `tags` | Labels | `area:core`, `feat` |
+| `depends_on` | Issue body reference | `depends on #42` |
+| `parent/child` | Sub-issues | Created via `mcp__github__sub_issue_write` |
+| `assignee` | Issue assignee | `@username` |
+| `created/updated` | Issue timestamps | Automatic |
+| `transitions` | Issue timeline | Automatic audit trail |
 
-For GitHub issues, these map to labels and issue metadata instead.
+### Label Taxonomy
+
+Apply labels when creating the issue:
+
+**Required:**
+- `spec` — marks this as a spec issue (always present)
+
+**Type** (pick one):
+- `feat` — new capability
+- `fix` — bug fix
+- `refactor` — restructuring without behavior change
+- `perf` — performance improvement
+
+**Area** (pick one or more):
+- `area:core` — `stiglab-core` crate
+- `area:server` — `stiglab-server` crate
+- `area:agent` — `stiglab-agent` crate
+- `area:ui` — `stiglab-ui` package
+
+**Priority** (pick one):
+- `priority:critical` — blocks other work, needs immediate attention
+- `priority:high` — important, should be next
+- `priority:medium` — default
+- `priority:low` — nice to have
+
+**Status** (pick one, update as lifecycle progresses):
+- `draft` — initial state, AI-generated, human review pending
+- `planned` — human reviewed, decisions made, ready for implementation
+- `in-progress` — actively being worked on
 
 ### Status Lifecycle
 
 ```
-draft → planned → in-progress → complete
-  ↓        ↓          ↓            ↓
-  └────────┴──────────┴────────→ archived
+open + draft  →  open + planned  →  open + in-progress  →  closed
 ```
 
-- **draft**: Spec written but not reviewed. Open questions may remain.
-- **planned**: Human has reviewed, decisions made, ready for implementation.
-- **in-progress**: Someone is actively working on it.
-- **complete**: All plan items done, all tests passing.
-- **archived**: No longer relevant (superseded, abandoned, or completed long ago).
-
-**Key rule**: Don't skip `planned`. A spec goes from `draft` to `planned` only after a human reviews it and resolves open questions. This is the primary human-AI alignment gate.
+The `draft → planned` transition is the **human-AI alignment gate**. Only a human moves a spec to `planned` — this confirms:
+- Open questions are resolved
+- Design approach is approved
+- Scope and priority are accepted
 
 ## Sections
 
@@ -85,8 +109,8 @@ Per-session overrides are out of scope for now.
 **Guidelines:**
 - Describe data flow, state changes, API surface — not line-by-line code.
 - Include what's explicitly **out of scope** to prevent scope creep.
-- If design is complex, extract subsections into child specs.
-- Reference existing architecture: "follows the pattern in `specs/000-architecture.md`"
+- If design is complex, create child sub-issues for subsections.
+- Reference existing architecture when relevant.
 
 ### Plan
 
@@ -108,7 +132,8 @@ Per-session overrides are out of scope for now.
 - Each item starts with a verb: Add, Implement, Update, Remove, Fix.
 - Items should be small enough to verify in isolation.
 - Order reflects implementation sequence.
-- If a plan has more than ~10 items, the spec is too big — split it.
+- If a plan has more than ~10 items, the spec is too big — split into sub-issues.
+- Checkboxes serve as progress tracking on the issue itself.
 
 ### Test
 
@@ -131,29 +156,9 @@ Per-session overrides are out of scope for now.
 - Include negative cases: "rejects invalid", "does not delete".
 - For manual tests, describe what to check — not exact click paths.
 
-### Notes
+### Alignment
 
-**Purpose**: Context, tradeoffs, references, and anything that doesn't fit elsewhere.
-
-```markdown
-## Notes
-
-- Considered per-session timeout overrides via API, but deferred to keep
-  scope small. Can add in a follow-up spec.
-- The timeout timer approach uses `tokio::time::sleep` per session.
-  At 100+ concurrent sessions this may need optimization (timer wheel).
-- Related: Crawlab uses a similar heartbeat-based timeout for spider tasks.
-```
-
-**Guidelines:**
-- Tradeoffs considered and why you chose this approach.
-- Performance or scalability concerns for future reference.
-- Links to related specs, issues, external resources.
-- Keep it brief — notes are context, not a second design section.
-
-### Alignment (extension for human-AI collaboration)
-
-**Purpose**: Explicit partition of work between human and AI.
+**Purpose**: Explicit partition of work between human and AI. This section extends the lean-spec format for human-AI collaborative development.
 
 ```markdown
 ## Alignment
@@ -181,29 +186,62 @@ Per-session overrides are out of scope for now.
 **Guidelines:**
 - Every Plan item maps to exactly one of: "Human decides" or "AI implements."
 - Human items are decisions/tradeoffs. AI items are execution.
-- Open questions block implementation — they must be resolved before status moves to `planned`.
-- Once resolved, move the answer to "Human decides" as a recorded decision.
+- Open questions block implementation — they must be resolved (via issue comments) before the `draft → planned` label transition.
+- Once a human answers a question in a comment, update the Alignment section and record the decision.
+
+### Notes
+
+**Purpose**: Context, tradeoffs, references — anything that doesn't fit elsewhere.
+
+```markdown
+## Notes
+
+- Considered per-session timeout overrides via API, but deferred to keep
+  scope small. Can add in a follow-up spec.
+- The timeout timer approach uses `tokio::time::sleep` per session.
+  At 100+ concurrent sessions this may need optimization (timer wheel).
+- Related: #23 (session state machine), #31 (node heartbeat)
+```
+
+**Guidelines:**
+- Tradeoffs considered and why you chose this approach.
+- Performance or scalability concerns for future reference.
+- Links to related issues, PRs, or external resources.
+- Keep it brief — notes are context, not a second design section.
+- Omit this section entirely if there's nothing to note.
 
 ## Context Economy Rules
 
-From lean-spec's core principle — smaller specs produce better results:
+Smaller specs produce better results — for both AI implementation and human review:
 
-| Spec size | Action |
-|-----------|--------|
+| Issue body size | Action |
+|----------------|--------|
 | < 500 tokens | Good for bug fixes and small changes |
-| 500-2000 tokens | Standard spec — covers most features |
-| > 2000 tokens | Split into parent + children |
+| 500–2000 tokens | Standard spec — covers most features |
+| > 2000 tokens | **Split into parent + sub-issues** |
 
 **How to split:**
-1. Create an umbrella issue (parent) with Overview + high-level Plan.
-2. Create child issues, one per independent concern.
-3. Each child has its own Design, Plan, Test sections.
-4. Children reference the parent. Parent lists all children.
+1. Create a parent issue with Overview + high-level Plan listing the children.
+2. Create child issues via `mcp__github__sub_issue_write`, one per independent concern.
+3. Each child has its own Design, Plan, Test, Alignment sections.
+4. Parent tracks overall progress; children track individual concerns.
 
-**Example split:**
+**Example:**
 ```
-spec(server): session lifecycle improvements  (parent)
-├── spec(core): session timeout mechanism     (child)
-├── spec(core): session retry on failure      (child)
-└── spec(ui): timeout warning indicator       (child)
+#50 spec(server): session lifecycle improvements       ← parent
+  ├── #51 spec(core): session timeout mechanism        ← sub-issue
+  ├── #52 spec(core): session retry on failure         ← sub-issue
+  └── #53 spec(ui): timeout warning indicator          ← sub-issue
 ```
+
+## Title Convention
+
+```
+spec(<area>): <short description in imperative mood>
+```
+
+Examples:
+- `spec(core): add session timeout for idle sessions`
+- `spec(server): handle WebSocket reconnection gracefully`
+- `spec(ui): show real-time node heartbeat status`
+- `spec(agent): retry failed session dispatch`
