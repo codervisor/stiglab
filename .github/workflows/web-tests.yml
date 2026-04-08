@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   # ── L1: Deterministic regression tests ───────────────────────
@@ -221,13 +222,14 @@ jobs:
           VERDICT=$(jq -r '.structured_output.verdict // empty' /tmp/l2-result.json 2>/dev/null || true)
           if [ -z "$VERDICT" ]; then
             echo "::warning::structured_output not found, falling back to .result"
-            jq -r '.result // "No result field found"' /tmp/l2-result.json > /tmp/l2-verdict.md 2>/dev/null || cat /tmp/l2-result.json > /tmp/l2-verdict.md
+            jq -r '.result // "No result field found"' /tmp/l2-result.json > /tmp/l2-verdict-raw.md 2>/dev/null || cat /tmp/l2-result.json > /tmp/l2-verdict-raw.md
             {
               echo "## L2: AI PR Testing"
               echo ""
-              cat /tmp/l2-verdict.md
-            } >> "$GITHUB_STEP_SUMMARY"
-            if grep -qi "FAIL" /tmp/l2-verdict.md; then
+              cat /tmp/l2-verdict-raw.md
+            } > /tmp/l2-comment.md
+            cat /tmp/l2-comment.md >> "$GITHUB_STEP_SUMMARY"
+            if grep -qi "FAIL" /tmp/l2-verdict-raw.md; then
               exit 1
             fi
             exit 0
@@ -235,7 +237,7 @@ jobs:
 
           SUMMARY=$(jq -r '.structured_output.summary // ""' /tmp/l2-result.json)
 
-          # Write structured job summary
+          # Write structured results to file and job summary
           {
             echo "## L2: AI PR Testing"
             echo ""
@@ -260,12 +262,49 @@ jobs:
               jq -r '.structured_output.crystallized[] | "- \(.)"' /tmp/l2-result.json
               echo ""
             fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > /tmp/l2-comment.md
+          cat /tmp/l2-comment.md >> "$GITHUB_STEP_SUMMARY"
 
           # Exit based on verdict
           if [ "$VERDICT" != "PASS" ]; then
             echo "::error::L2 testing verdict: ${VERDICT}"
             exit 1
+          fi
+
+      - name: Post L2 results to PR
+        if: always() && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f /tmp/l2-comment.md ]; then
+            echo "No L2 results to post"
+            exit 0
+          fi
+
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          MARKER="<!-- l2-verdict -->"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Build final comment with marker and run link
+          {
+            echo "$MARKER"
+            cat /tmp/l2-comment.md
+            echo ""
+            echo "---"
+            echo "<sub>Posted by [L2 CI run](${RUN_URL}) • $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
+          } > /tmp/l2-comment-final.md
+
+          # Find existing comment with marker (update in-place on re-runs)
+          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null | head -1 || true)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments/${COMMENT_ID}" \
+              -X PATCH -F body=@/tmp/l2-comment-final.md
+            echo "Updated existing PR comment $COMMENT_ID"
+          else
+            gh pr comment "$PR_NUMBER" --body-file /tmp/l2-comment-final.md
+            echo "Created new PR comment"
           fi
 
   # L2 triage: diagnose L1 failures on PRs
@@ -357,11 +396,12 @@ jobs:
               echo "## L2: Triage L1 Failure"
               echo ""
               jq -r '.result // "No result field found"' /tmp/l2-triage.json 2>/dev/null || cat /tmp/l2-triage.json
-            } >> "$GITHUB_STEP_SUMMARY"
+            } > /tmp/l2-triage-comment.md
+            cat /tmp/l2-triage-comment.md >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          # Write structured job summary
+          # Write structured results to file and job summary
           {
             echo "## L2: Triage L1 Failure"
             echo ""
@@ -375,4 +415,41 @@ jobs:
             echo ""
             echo "### Suggested fix"
             jq -r '.structured_output.suggested_fix' /tmp/l2-triage.json
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > /tmp/l2-triage-comment.md
+          cat /tmp/l2-triage-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post triage results to PR
+        if: always() && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f /tmp/l2-triage-comment.md ]; then
+            echo "No triage results to post"
+            exit 0
+          fi
+
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          MARKER="<!-- l2-triage -->"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Build final comment with marker and run link
+          {
+            echo "$MARKER"
+            cat /tmp/l2-triage-comment.md
+            echo ""
+            echo "---"
+            echo "<sub>Posted by [L2 triage CI run](${RUN_URL}) • $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
+          } > /tmp/l2-triage-comment-final.md
+
+          # Find existing comment with marker (update in-place on re-runs)
+          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" 2>/dev/null | head -1 || true)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments/${COMMENT_ID}" \
+              -X PATCH -F body=@/tmp/l2-triage-comment-final.md
+            echo "Updated existing PR comment $COMMENT_ID"
+          else
+            gh pr comment "$PR_NUMBER" --body-file /tmp/l2-triage-comment-final.md
+            echo "Created new PR comment"
+          fi
