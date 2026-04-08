@@ -1,6 +1,9 @@
 import { SessionTable } from "@/components/sessions/SessionTable"
+import { CreateSessionSheet } from "@/components/sessions/CreateSessionSheet"
 import { useSessions } from "@/hooks/useSessions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
 
 export function SessionsPage() {
   const { data, isLoading } = useSessions()
@@ -8,11 +11,19 @@ export function SessionsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight md:text-2xl">Sessions</h1>
-        <p className="text-sm text-muted-foreground">
-          View and manage agent sessions.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">Sessions</h1>
+          <p className="text-sm text-muted-foreground">
+            View and manage agent sessions.
+          </p>
+        </div>
+        <CreateSessionSheet>
+          <Button size="sm" className="hidden md:inline-flex">
+            <Plus className="h-4 w-4" data-icon="inline-start" />
+            New Session
+          </Button>
+        </CreateSessionSheet>
       </div>
 
       <Card>
