@@ -54,7 +54,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Chrome for agent-browser
-        run: npx agent-browser install --with-deps
+        run: |
+          npm install -g agent-browser
+          agent-browser install --with-deps
 
       - name: Build UI
         run: pnpm build:ui
@@ -98,7 +100,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Chrome for agent-browser
-        run: npx agent-browser install --with-deps
+        run: |
+          npm install -g agent-browser
+          agent-browser install --with-deps
 
       - name: Build UI
         run: pnpm build:ui
@@ -150,7 +154,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Chrome for agent-browser
-        run: npx agent-browser install --with-deps
+        run: |
+          npm install -g agent-browser
+          agent-browser install --with-deps
 
       - name: Build UI
         run: pnpm build:ui
@@ -289,7 +295,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Chrome for agent-browser
-        run: npx agent-browser install --with-deps
+        run: |
+          npm install -g agent-browser
+          agent-browser install --with-deps
 
       - name: Build UI
         run: pnpm build:ui
