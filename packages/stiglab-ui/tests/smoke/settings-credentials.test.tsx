@@ -96,7 +96,7 @@ describe("SettingsPage credentials layout", () => {
 
   it("submitting inline edit form via Enter key triggers mutation", async () => {
     const { api: mockApi } = await import("@/lib/api")
-    vi.mocked(mockApi.setCredential).mockResolvedValue(undefined)
+    vi.mocked(mockApi.setCredential).mockResolvedValue({ ok: true })
     renderSettings()
     const [firstAdd] = screen.getAllByRole("button", { name: /add/i })
     fireEvent.click(firstAdd)
@@ -105,7 +105,8 @@ describe("SettingsPage credentials layout", () => {
     fireEvent.submit(input.closest("form")!)
     await waitFor(() =>
       expect(mockApi.setCredential).toHaveBeenCalledWith(
-        expect.objectContaining({ value: "secret123" }),
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "secret123",
       ),
     )
   })
