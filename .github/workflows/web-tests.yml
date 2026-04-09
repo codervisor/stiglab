@@ -160,13 +160,10 @@ jobs:
           context: .
           file: Dockerfile
           push: false
-          load: true
+          outputs: type=docker,dest=/tmp/stiglab-l2.tar
           tags: stiglab:l2
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Save image to tarball
-        run: docker save stiglab:l2 -o /tmp/stiglab-l2.tar
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -346,7 +343,7 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           MARKER="<!-- l2-verdict -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          ARTIFACT_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          ARTIFACT_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts"
           API_BASE="https://api.github.com/repos/${{ github.repository }}"
           AUTH_HEADER="Authorization: Bearer ${GITHUB_TOKEN}"
 

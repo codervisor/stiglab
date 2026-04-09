@@ -18,6 +18,8 @@
           "notes": { "type": "string" },
           "viewports": {
             "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
             "items": {
               "type": "object",
               "properties": {
