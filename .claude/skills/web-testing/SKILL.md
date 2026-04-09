@@ -25,6 +25,7 @@ L2 works from three things — no separate spec needed:
 | `/sessions` | Sessions | All Sessions table with state badges |
 | `/sessions/:id` | Session Detail | Session metadata, output log stream |
 | `/nodes` | Nodes | Registered Nodes table with status badges |
+| `/settings` | Settings | Profile card, Credentials (add/edit/delete forms) |
 
 ## Viewports
 
@@ -88,7 +89,18 @@ For each affected page, at **each viewport** (desktop then mobile):
 3. Verify changed elements render correctly
 4. Check for "undefined", "NaN", or uncaught errors
 5. Check layout is not broken at the current viewport size
-6. Take a screenshot and save it to `/tmp/l2-screenshots/`
+6. **Exercise interactive elements** (see below)
+7. Take a screenshot and save it to `/tmp/l2-screenshots/`
+
+**Interaction testing — required when the diff touches forms, buttons, or
+mutations:**
+- Click buttons, fill inputs, submit forms — don't just verify markup exists
+- After submitting, verify the **result**: did the UI state change? Did the
+  form close? Did new data appear? Did an error message show?
+- Test both click-to-submit and Enter-key-to-submit for `<form>` elements
+- For mutations (save/delete/update): confirm the action completes by
+  checking the resulting UI state, not just that the button is present
+- Screenshot **before and after** the interaction to capture evidence
 
 **Mobile-specific checks:**
 - No horizontal overflow (content fits within 375px)
