@@ -50,7 +50,7 @@ export function SessionTable({ sessions }: SessionTableProps) {
         <p className="text-center text-muted-foreground">No sessions yet</p>
         <CreateSessionSheet>
           <Button size="sm" variant="outline">
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" data-icon="inline-start" />
             New Session
           </Button>
         </CreateSessionSheet>
