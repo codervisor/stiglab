@@ -4,8 +4,10 @@ import { AppSidebar } from "./AppSidebar"
 import { BottomNav } from "./BottomNav"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "./ThemeToggle"
-import { Terminal } from "lucide-react"
+import { Terminal, Plus } from "lucide-react"
 import { Link } from "react-router-dom"
+import { CreateSessionSheet } from "@/components/sessions/CreateSessionSheet"
+import { Button } from "@/components/ui/button"
 
 export function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -18,7 +20,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <Terminal className="h-5 w-5 text-blue-500" />
             <span className="text-base font-semibold">Stiglab</span>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <CreateSessionSheet>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Plus className="h-4 w-4" />
+                <span className="sr-only">New Session</span>
+              </Button>
+            </CreateSessionSheet>
+            <ThemeToggle />
+          </div>
         </header>
         {/* Desktop header */}
         <header className="hidden h-14 items-center gap-2 border-b px-6 md:flex">
