@@ -131,6 +131,8 @@ export function SettingsPage() {
                       variant="outline"
                       onClick={() => deleteCred.mutate(cred.name)}
                       disabled={deleteCred.isPending}
+                      aria-label={`Delete ${cred.name}`}
+                      title={`Delete ${cred.name}`}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -249,7 +251,7 @@ export function SettingsPage() {
             <p className="text-sm font-medium text-muted-foreground">
               Custom credential
             </p>
-            <div className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[auto_1fr_auto]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr_auto]">
               <Input
                 placeholder="ENV_VAR_NAME"
                 value={newCredName}
