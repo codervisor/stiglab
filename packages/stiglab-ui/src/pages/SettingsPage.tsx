@@ -25,7 +25,7 @@ export function SettingsPage() {
   const [newCredValue, setNewCredValue] = useState("")
   const [editingCred, setEditingCred] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<{ form: string; message: string } | null>(null)
 
   const { data: credData } = useQuery({
     queryKey: ["credentials"],
@@ -44,7 +44,8 @@ export function SettingsPage() {
       setSaveError(null)
     },
     onError: (error) => {
-      setSaveError(error instanceof Error ? error.message : "Failed to save")
+      const message = error instanceof Error ? error.message : "Failed to save"
+      setSaveError({ form: editingCred ?? "custom", message })
     },
   })
 
@@ -127,6 +128,7 @@ export function SettingsPage() {
                       onClick={() => {
                         setEditingCred(cred.name)
                         setEditValue("")
+                        setSaveError(null)
                       }}
                     >
                       Update
@@ -148,6 +150,7 @@ export function SettingsPage() {
                 <form
                   onSubmit={(e) => {
                     e.preventDefault()
+                    if (setCred.isPending) return
                     if (editValue) setCred.mutate({ name: cred.name, value: editValue })
                   }}
                   className="space-y-2"
@@ -180,8 +183,8 @@ export function SettingsPage() {
                       Cancel
                     </Button>
                   </div>
-                  {saveError && (
-                    <p className="text-xs text-destructive">{saveError}</p>
+                  {saveError?.form === cred.name && (
+                    <p className="text-xs text-destructive">{saveError.message}</p>
                   )}
                 </form>
               )}
@@ -216,6 +219,7 @@ export function SettingsPage() {
                           onClick={() => {
                             setEditingCred(`new-${known.name}`)
                             setEditValue("")
+                            setSaveError(null)
                           }}
                         >
                           <Plus className="mr-1 h-3 w-3" />
@@ -227,6 +231,7 @@ export function SettingsPage() {
                       <form
                         onSubmit={(e) => {
                           e.preventDefault()
+                          if (setCred.isPending) return
                           if (editValue) setCred.mutate({ name: known.name, value: editValue })
                         }}
                         className="space-y-2"
@@ -259,8 +264,8 @@ export function SettingsPage() {
                             Cancel
                           </Button>
                         </div>
-                        {saveError && (
-                          <p className="text-xs text-destructive">{saveError}</p>
+                        {saveError?.form === `new-${known.name}` && (
+                          <p className="text-xs text-destructive">{saveError.message}</p>
                         )}
                       </form>
                     )}
@@ -274,6 +279,7 @@ export function SettingsPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              if (setCred.isPending) return
               if (newCredName && newCredValue) setCred.mutate({ name: newCredName, value: newCredValue })
             }}
             className="space-y-2 border-t pt-4"
@@ -303,8 +309,8 @@ export function SettingsPage() {
                 Add
               </Button>
             </div>
-            {saveError && (
-              <p className="text-xs text-destructive">{saveError}</p>
+            {saveError?.form === "custom" && (
+              <p className="text-xs text-destructive">{saveError.message}</p>
             )}
           </form>
         </CardContent>
