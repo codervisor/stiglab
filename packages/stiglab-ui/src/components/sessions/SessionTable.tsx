@@ -10,7 +10,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatDistanceToNow } from "@/lib/utils"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Plus } from "lucide-react"
+import { CreateSessionSheet } from "./CreateSessionSheet"
+import { Button } from "@/components/ui/button"
 
 interface SessionTableProps {
   sessions: Session[]
@@ -44,7 +46,15 @@ function SessionCard({ session }: { session: Session }) {
 export function SessionTable({ sessions }: SessionTableProps) {
   if (sessions.length === 0) {
     return (
-      <p className="py-8 text-center text-muted-foreground">No sessions yet</p>
+      <div className="flex flex-col items-center gap-3 py-8">
+        <p className="text-center text-muted-foreground">No sessions yet</p>
+        <CreateSessionSheet>
+          <Button size="sm" variant="outline">
+            <Plus className="h-4 w-4" />
+            New Session
+          </Button>
+        </CreateSessionSheet>
+      </div>
     )
   }
 
