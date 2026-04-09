@@ -272,6 +272,8 @@ jobs:
           4. At each viewport, open the page at http://localhost:3000 and:
              - Verify elements render correctly
              - Check for layout issues (especially horizontal overflow on mobile)
+             - Exercise interactive elements: click buttons, fill forms, submit,
+               and verify the resulting UI state (not just that markup exists)
              - Take a screenshot: \`agent-browser screenshot --screenshot-dir /tmp/l2-screenshots\`
              - Rename to convention: /tmp/l2-screenshots/{slug}-{desktop|mobile}.png
           5. Crystallize: write L1 tests for any validated new behavior
