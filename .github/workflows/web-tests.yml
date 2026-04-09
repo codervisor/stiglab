@@ -82,11 +82,12 @@ jobs:
           STIGLAB_TEST_URL: http://localhost:5173
         run: npx vitest run --config vitest.e2e.config.ts
 
-  # L1 e2e smoke subset on PRs
+  # L1 e2e smoke subset on PRs — runs against the Docker image
   l1-e2e-pr:
     name: "L1: E2E Smoke (PR)"
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    needs: [docker-build]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -106,36 +107,47 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Build UI
-        run: pnpm build:ui
+      - name: Download Docker image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: stiglab-docker-image
+          path: /tmp
 
-      - name: Wait for preview server
-        working-directory: packages/stiglab-ui
+      - name: Load and start Docker container
         run: |
-          npx vite preview --port 5173 &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5173 >/dev/null 2>&1; then
+          docker load -i /tmp/stiglab-l2.tar
+          docker run -d --name stiglab-e2e \
+            -p 3000:3000 \
+            -e STIGLAB_HOST=0.0.0.0 \
+            -e PORT=3000 \
+            stiglab:l2 server
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "Container ready after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          echo "Preview server did not become ready within 30s" >&2
+          echo "Container did not become ready within 60s" >&2
+          docker logs stiglab-e2e
           exit 1
 
       - name: Run L1 e2e smoke tests
         working-directory: packages/stiglab-ui
         env:
-          STIGLAB_TEST_URL: http://localhost:5173
+          STIGLAB_TEST_URL: http://localhost:3000
         run: npx vitest run --config vitest.e2e.config.ts tests/e2e/smoke.test.ts
+
+      - name: Stop Docker container
+        if: always()
+        run: docker rm -f stiglab-e2e 2>/dev/null || true
 
   # ── Docker image (shared by L2 jobs) ─────────────────────────
 
   docker-build:
     name: "Docker Build"
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.fork == false
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
