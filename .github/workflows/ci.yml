@@ -320,6 +320,53 @@ jobs:
             exit 1
           fi
 
+      - name: Persist crystallized tests
+        if: >-
+          always() && !cancelled() &&
+          github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Detect new or modified test files written by L2 crystallization
+          CRYSTAL=$(
+            { git diff --name-only; git ls-files --others --exclude-standard; } \
+            | grep -E '^packages/stiglab-ui/tests/(smoke|e2e)/' \
+            | sort -u
+          ) || true
+
+          if [ -z "$CRYSTAL" ]; then
+            echo "No crystallized tests to persist"
+            exit 0
+          fi
+
+          echo "Crystallized test files:"
+          echo "$CRYSTAL"
+
+          # Save crystallized files before switching branches
+          mkdir -p /tmp/crystallized
+          while IFS= read -r f; do
+            mkdir -p "/tmp/crystallized/$(dirname "$f")"
+            cp "$f" "/tmp/crystallized/$f"
+          done <<< "$CRYSTAL"
+
+          # Switch to the PR branch (checkout leaves us on detached merge commit)
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
+
+          # Copy crystallized files back and commit
+          while IFS= read -r f; do
+            mkdir -p "$(dirname "$f")"
+            cp "/tmp/crystallized/$f" "$f"
+          done <<< "$CRYSTAL"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          echo "$CRYSTAL" | xargs git add
+          git commit -m "test: crystallize L2 findings into L1 tests"
+          git push origin "$PR_BRANCH"
+          echo "::notice::Crystallized tests committed to ${PR_BRANCH}"
+
       - name: Stop Docker container
         if: always()
         run: docker rm -f stiglab-l2 2>/dev/null || true
