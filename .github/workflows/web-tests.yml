@@ -1,25 +1,28 @@
 name: "Web UI Tests"
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
+  actions: read
 
 jobs:
   # ── L1: Deterministic regression tests ───────────────────────
 
-  # L1 component smoke: runs on every push and PR
+  # L1 component smoke: runs on every CI completion
   l1-smoke:
     name: "L1: Component Smoke Tests"
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
@@ -36,13 +39,17 @@ jobs:
         working-directory: packages/stiglab-ui
         run: npx vitest run --config vitest.config.ts
 
-  # L1 e2e: full regression on main and pre-release
+  # L1 e2e: runs against Docker image from CI
+  # - On PRs: smoke subset only
+  # - On main: full regression suite
   l1-e2e:
-    name: "L1: E2E Regression"
+    name: "L1: E2E Tests"
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
@@ -60,67 +67,22 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Build UI
-        run: pnpm build:ui
-
-      - name: Wait for preview server
-        working-directory: packages/stiglab-ui
-        run: |
-          npx vite preview --port 5173 &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5173 >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Preview server did not become ready within 30s" >&2
-          exit 1
-
-      - name: Run L1 e2e tests
-        working-directory: packages/stiglab-ui
-        env:
-          STIGLAB_TEST_URL: http://localhost:5173
-        run: npx vitest run --config vitest.e2e.config.ts
-
-  # L1 e2e smoke subset on PRs — runs against the Docker image
-  l1-e2e-pr:
-    name: "L1: E2E Smoke (PR)"
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: [docker-build]
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-        with:
-          version: 10
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Install Chrome for agent-browser
-        run: |
-          npm install -g agent-browser
-          agent-browser install --with-deps
-
-      - name: Download Docker image
+      - name: Download Docker image from CI
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stiglab-docker-image
           path: /tmp
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
 
       - name: Load and start Docker container
         run: |
-          docker load -i /tmp/stiglab-l2.tar
+          docker load -i /tmp/stiglab.tar
           docker run -d --name stiglab-e2e \
             -p 3000:3000 \
             -e STIGLAB_HOST=0.0.0.0 \
             -e PORT=3000 \
-            stiglab:l2 server
+            stiglab:ci server
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
               echo "Container ready after ${i}s"
@@ -132,60 +94,37 @@ jobs:
           docker logs stiglab-e2e
           exit 1
 
-      - name: Run L1 e2e smoke tests
+      - name: Run L1 e2e tests
         working-directory: packages/stiglab-ui
         env:
           STIGLAB_TEST_URL: http://localhost:3000
-        run: npx vitest run --config vitest.e2e.config.ts tests/e2e/smoke.test.ts
+        run: |
+          if [ "${{ github.event.workflow_run.event }}" = "pull_request" ]; then
+            npx vitest run --config vitest.e2e.config.ts tests/e2e/smoke.test.ts
+          else
+            npx vitest run --config vitest.e2e.config.ts
+          fi
 
       - name: Stop Docker container
         if: always()
         run: docker rm -f stiglab-e2e 2>/dev/null || true
 
-  # ── Docker image (shared by L2 jobs) ─────────────────────────
+  # ── L2: AI-driven validation ─────────────────────────────────
 
-  docker-build:
-    name: "Docker Build"
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      - name: Build and export Docker image
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v5.16.0
-        with:
-          context: .
-          file: Dockerfile
-          push: false
-          outputs: type=docker,dest=/tmp/stiglab-l2.tar
-          tags: stiglab:l2
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: stiglab-docker-image
-          path: /tmp/stiglab-l2.tar
-          retention-days: 1
-
-  # ── L2: AI-driven PR validation ──────────────────────────────
-
-  # L2 on PRs: diff-scoped testing + crystallize into L1
-  l2-pr:
-    name: "L2: AI PR Testing"
+  # L2: diff-scoped testing on PRs, post-merge validation on main
+  l2:
+    name: "L2: AI Testing"
     runs-on: ubuntu-latest
     if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.fork == false
-    needs: [l1-smoke, docker-build]
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event != 'pull_request' ||
+       github.event.workflow_run.pull_requests[0].head.repo.full_name == github.event.workflow_run.repository.full_name)
+    needs: [l1-smoke]
     continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -204,21 +143,22 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Download Docker image
+      - name: Download Docker image from CI
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stiglab-docker-image
           path: /tmp
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
 
       - name: Load and start Docker container
         run: |
-          docker load -i /tmp/stiglab-l2.tar
+          docker load -i /tmp/stiglab.tar
           docker run -d --name stiglab-l2 \
             -p 3000:3000 \
             -e STIGLAB_HOST=0.0.0.0 \
             -e PORT=3000 \
-            stiglab:l2 server
-          # Wait for container health
+            stiglab:ci server
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
               echo "Container ready after ${i}s"
@@ -242,29 +182,38 @@ jobs:
           claude --version
           echo "CLAUDE_CODE_OAUTH_TOKEN is set: $([[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]] && echo yes || echo NO)"
 
-      - name: Run L2 diff-scoped PR testing
+      - name: Determine diff range
+        id: diff
+        run: |
+          if [ "${{ github.event.workflow_run.event }}" = "pull_request" ]; then
+            echo "range=origin/main...HEAD" >> "$GITHUB_OUTPUT"
+          else
+            echo "range=HEAD~1...HEAD" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run L2 testing
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DIFF_RANGE: ${{ steps.diff.outputs.range }}
         run: |
           set -eo pipefail
           mkdir -p /tmp/l2-screenshots
           SCHEMA=$(cat packages/stiglab-ui/tests/l2-verdict-schema.json)
 
-          # Stream JSON events: parser prints live logs to stderr, captures result to file
-          claude -p "$(cat <<'PROMPT'
-          Run L2 web UI tests for this PR. The app is running in Docker at
+          claude -p "$(cat <<PROMPT
+          Run L2 web UI tests. The app is running in Docker at
           http://localhost:3000 (same image that gets deployed to production).
           Follow .claude/skills/web-testing/SKILL.md.
 
-          1. Read the PR diff (git diff origin/main...HEAD)
+          1. Read the diff (git diff ${DIFF_RANGE})
           2. Map changed files to affected UI routes
           3. For EACH affected page, test at BOTH viewports:
-             a. Desktop (1280x720): `agent-browser set viewport 1280 720`
-             b. Mobile (375x812): `agent-browser set viewport 375 812`
+             a. Desktop (1280x720): \`agent-browser set viewport 1280 720\`
+             b. Mobile (375x812): \`agent-browser set viewport 375 812\`
           4. At each viewport, open the page at http://localhost:3000 and:
              - Verify elements render correctly
              - Check for layout issues (especially horizontal overflow on mobile)
-             - Take a screenshot: `agent-browser screenshot --screenshot-dir /tmp/l2-screenshots`
+             - Take a screenshot: \`agent-browser screenshot --screenshot-dir /tmp/l2-screenshots\`
              - Rename to convention: /tmp/l2-screenshots/{slug}-{desktop|mobile}.png
           5. Crystallize: write L1 tests for any validated new behavior
           6. Set verdict to PASS if all pages pass at both viewports, FAIL if any fail
@@ -286,13 +235,12 @@ jobs:
           cat /tmp/l2-result.json
           echo "::endgroup::"
 
-          # Try structured_output first (--json-schema), fall back to .result
           VERDICT=$(jq -r '.structured_output.verdict // empty' /tmp/l2-result.json 2>/dev/null || true)
           if [ -z "$VERDICT" ]; then
             echo "::warning::structured_output not found, falling back to .result"
             jq -r '.result // "No result field found"' /tmp/l2-result.json > /tmp/l2-verdict-raw.md 2>/dev/null || cat /tmp/l2-result.json > /tmp/l2-verdict-raw.md
             {
-              echo "## L2: AI PR Testing"
+              echo "## L2: AI Testing"
               echo ""
               cat /tmp/l2-verdict-raw.md
             } > /tmp/l2-comment.md
@@ -303,15 +251,11 @@ jobs:
             exit 0
           fi
 
-          SUMMARY=$(jq -r '.structured_output.summary // ""' /tmp/l2-result.json)
-
-          # Write structured results to job summary and PR comment
           node packages/stiglab-ui/tests/format-l2-comment.mjs \
             /tmp/l2-result.json \
             /tmp/l2-comment.md
           cat /tmp/l2-comment.md >> "$GITHUB_STEP_SUMMARY"
 
-          # Exit based on verdict
           if [ "$VERDICT" != "PASS" ]; then
             echo "::error::L2 testing verdict: ${VERDICT}"
             exit 1
@@ -325,13 +269,48 @@ jobs:
         if: always() && !cancelled()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: l2-screenshots-pr${{ github.event.pull_request.number }}
+          name: l2-screenshots
           path: /tmp/l2-screenshots/
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Push screenshots to branch for embedding
+        if: >-
+          always() && !cancelled() &&
+          github.event.workflow_run.event == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          SCREENSHOT_COUNT=$(find /tmp/l2-screenshots -name '*.png' 2>/dev/null | wc -l || echo 0)
+          if [ "$SCREENSHOT_COUNT" -eq 0 ]; then
+            echo "No screenshots to push"
+            exit 0
+          fi
+
+          PR_NUMBER=${{ github.event.workflow_run.pull_requests[0].number }}
+          BRANCH="l2-screenshots/pr-${PR_NUMBER}"
+          REPO="${{ github.repository }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Create orphan branch with only screenshots
+          git checkout --orphan "$BRANCH"
+          git rm -rf . 2>/dev/null || true
+          cp /tmp/l2-screenshots/*.png . 2>/dev/null || true
+          git add *.png 2>/dev/null || true
+          git commit -m "L2 screenshots for PR #${PR_NUMBER}" --allow-empty
+          git push -f origin "$BRANCH"
+
+          # Export screenshot URLs for the comment step
+          echo "SCREENSHOT_BRANCH=${BRANCH}" >> "$GITHUB_ENV"
+          echo "SCREENSHOT_REPO=${REPO}" >> "$GITHUB_ENV"
+
       - name: Post L2 results to PR
-        if: always() && !cancelled()
+        if: >-
+          always() && !cancelled() &&
+          github.event.workflow_run.event == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -340,22 +319,47 @@ jobs:
             exit 0
           fi
 
-          PR_NUMBER=${{ github.event.pull_request.number }}
+          PR_NUMBER=${{ github.event.workflow_run.pull_requests[0].number }}
           MARKER="<!-- l2-verdict -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          ARTIFACT_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts"
+          ARTIFACT_URL="${RUN_URL}#artifacts"
           API_BASE="https://api.github.com/repos/${{ github.repository }}"
           AUTH_HEADER="Authorization: Bearer ${GITHUB_TOKEN}"
+          REPO="${{ github.repository }}"
 
-          # Count screenshots taken
+          # Build screenshot markdown if branch was pushed
+          SCREENSHOT_MD=""
+          BRANCH="${SCREENSHOT_BRANCH:-}"
+          if [ -n "$BRANCH" ]; then
+            SCREENSHOT_MD=$(
+              for f in /tmp/l2-screenshots/*.png; do
+                [ -f "$f" ] || continue
+                NAME=$(basename "$f" .png)
+                # Derive label from filename (e.g., dashboard-desktop → Dashboard — Desktop)
+                LABEL=$(echo "$NAME" | sed 's/-/ /g; s/\b\(.\)/\u\1/g' | sed 's/ Desktop/ — Desktop/; s/ Mobile/ — Mobile/')
+                echo "![${LABEL}](https://raw.githubusercontent.com/${REPO}/${BRANCH}/$(basename "$f"))"
+              done
+            )
+          fi
+
           SCREENSHOT_COUNT=$(find /tmp/l2-screenshots -name '*.png' 2>/dev/null | wc -l || echo 0)
 
-          # Build final comment with marker, screenshots link, and run link
+          # Build final comment
           {
             echo "$MARKER"
             cat /tmp/l2-comment.md
             echo ""
-            if [ "$SCREENSHOT_COUNT" -gt 0 ]; then
+            if [ -n "$SCREENSHOT_MD" ]; then
+              echo "### Screenshots"
+              echo ""
+              echo "<details open>"
+              echo "<summary>${SCREENSHOT_COUNT} screenshots (Desktop + Mobile)</summary>"
+              echo ""
+              echo "$SCREENSHOT_MD"
+              echo ""
+              echo "</details>"
+              echo ""
+            elif [ "$SCREENSHOT_COUNT" -gt 0 ]; then
               echo "---"
               echo "> **Screenshots**: ${SCREENSHOT_COUNT} captured (Desktop + Mobile) — [Download from CI artifacts](${ARTIFACT_URL})"
               echo ""
@@ -366,7 +370,7 @@ jobs:
 
           BODY_JSON=$(jq -n --arg body "$(cat /tmp/l2-comment-final.md)" '{body: $body}')
 
-          # Find existing comment with marker
+          # Upsert PR comment
           COMMENT_ID=$(curl -sf -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
             "${API_BASE}/issues/${PR_NUMBER}/comments?per_page=100" \
             | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | tail -1 || true)
@@ -381,21 +385,22 @@ jobs:
             echo "Created new PR comment"
           fi
 
-  # L2 triage: diagnose L1 failures on PRs
+  # L2 triage: diagnose L1 failures
   l2-triage:
     name: "L2: Triage L1 Failure"
     runs-on: ubuntu-latest
     if: >-
       always() &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.fork == false &&
-      needs.l1-e2e-pr.result == 'failure' &&
-      needs.docker-build.result == 'success'
-    needs: [l1-e2e-pr, docker-build]
+      needs.l1-e2e.result == 'failure' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event != 'pull_request' ||
+       github.event.workflow_run.pull_requests[0].head.repo.full_name == github.event.workflow_run.repository.full_name)
+    needs: [l1-e2e]
     continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -414,20 +419,22 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Download Docker image
+      - name: Download Docker image from CI
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stiglab-docker-image
           path: /tmp
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
 
       - name: Load and start Docker container
         run: |
-          docker load -i /tmp/stiglab-l2.tar
+          docker load -i /tmp/stiglab.tar
           docker run -d --name stiglab-l2-triage \
             -p 3000:3000 \
             -e STIGLAB_HOST=0.0.0.0 \
             -e PORT=3000 \
-            stiglab:l2 server
+            stiglab:ci server
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
               echo "Container ready after ${i}s"
@@ -451,9 +458,8 @@ jobs:
           set -eo pipefail
           SCHEMA=$(cat packages/stiglab-ui/tests/l2-triage-schema.json)
 
-          # Stream JSON events: parser prints live logs to stderr, captures result to file
           claude -p "$(cat <<'PROMPT'
-          L1 e2e tests failed on this PR. Triage the failure.
+          L1 e2e tests failed. Triage the failure.
           The app is running in Docker at http://localhost:3000
           (same image that gets deployed to production).
 
@@ -474,7 +480,6 @@ jobs:
           cat /tmp/l2-triage.json
           echo "::endgroup::"
 
-          # Try structured_output first, fall back to .result
           ROOT_CAUSE=$(jq -r '.structured_output.root_cause // empty' /tmp/l2-triage.json 2>/dev/null || true)
           if [ -z "$ROOT_CAUSE" ]; then
             echo "::warning::structured_output not found, falling back to .result"
@@ -487,7 +492,6 @@ jobs:
             exit 0
           fi
 
-          # Write structured results to file and job summary
           {
             echo "## L2: Triage L1 Failure"
             echo ""
@@ -509,7 +513,9 @@ jobs:
         run: docker rm -f stiglab-l2-triage 2>/dev/null || true
 
       - name: Post triage results to PR
-        if: always() && !cancelled()
+        if: >-
+          always() && !cancelled() &&
+          github.event.workflow_run.event == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -518,13 +524,12 @@ jobs:
             exit 0
           fi
 
-          PR_NUMBER=${{ github.event.pull_request.number }}
+          PR_NUMBER=${{ github.event.workflow_run.pull_requests[0].number }}
           MARKER="<!-- l2-triage -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           API_BASE="https://api.github.com/repos/${{ github.repository }}"
           AUTH_HEADER="Authorization: Bearer ${GITHUB_TOKEN}"
 
-          # Build final comment with marker and run link
           {
             echo "$MARKER"
             cat /tmp/l2-triage-comment.md
@@ -535,7 +540,6 @@ jobs:
 
           BODY_JSON=$(jq -n --arg body "$(cat /tmp/l2-triage-comment-final.md)" '{body: $body}')
 
-          # Find existing comment with marker
           COMMENT_ID=$(curl -sf -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
             "${API_BASE}/issues/${PR_NUMBER}/comments?per_page=100" \
             | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | tail -1 || true)
