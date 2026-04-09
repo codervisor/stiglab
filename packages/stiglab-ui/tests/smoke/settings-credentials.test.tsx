@@ -75,4 +75,14 @@ describe("SettingsPage credentials layout", () => {
     const valueInputs = screen.getAllByPlaceholderText("Value")
     expect(valueInputs.length).toBeGreaterThanOrEqual(1)
   })
+
+  it("delete button has aria-label naming the credential", async () => {
+    const { api: mockApi } = await import("@/lib/api")
+    vi.mocked(mockApi.getCredentials).mockResolvedValueOnce({
+      credentials: [{ name: "MY_SECRET", updated_at: new Date().toISOString() }],
+    })
+    const { findByRole } = renderSettings()
+    const deleteBtn = await findByRole("button", { name: "Delete MY_SECRET" })
+    expect(deleteBtn).toBeInTheDocument()
+  })
 })
