@@ -1,28 +1,53 @@
 name: "Web UI Tests"
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: read
 
 jobs:
-  # ── L1: Deterministic regression tests ───────────────────────
+  # ── Docker image (shared by e2e and L2 jobs) ────────────────
 
-  # L1 component smoke: runs on every CI completion
-  l1-smoke:
-    name: "L1: Component Smoke Tests"
-    if: github.event.workflow_run.conclusion == 'success'
+  docker-build:
+    name: "Docker Build"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Build and export Docker image
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v5.16.0
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          context: .
+          file: Dockerfile
+          push: false
+          outputs: type=docker,dest=/tmp/stiglab.tar
+          tags: stiglab:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stiglab-docker-image
+          path: /tmp/stiglab.tar
+          retention-days: 1
+
+  # ── L1: Deterministic regression tests ───────────────────────
+
+  l1-smoke:
+    name: "L1: Component Smoke Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
@@ -39,17 +64,15 @@ jobs:
         working-directory: packages/stiglab-ui
         run: npx vitest run --config vitest.config.ts
 
-  # L1 e2e: runs against Docker image from CI
-  # - On PRs: smoke subset only
+  # L1 e2e: runs against Docker image
+  # - On PRs: smoke subset
   # - On main: full regression suite
   l1-e2e:
     name: "L1: E2E Tests"
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: [docker-build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
@@ -67,13 +90,11 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Download Docker image from CI
+      - name: Download Docker image
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stiglab-docker-image
           path: /tmp
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
 
       - name: Load and start Docker container
         run: |
@@ -82,7 +103,7 @@ jobs:
             -p 3000:3000 \
             -e STIGLAB_HOST=0.0.0.0 \
             -e PORT=3000 \
-            stiglab:ci server
+            stiglab:test server
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
               echo "Container ready after ${i}s"
@@ -99,7 +120,7 @@ jobs:
         env:
           STIGLAB_TEST_URL: http://localhost:3000
         run: |
-          if [ "${{ github.event.workflow_run.event }}" = "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             npx vitest run --config vitest.e2e.config.ts tests/e2e/smoke.test.ts
           else
             npx vitest run --config vitest.e2e.config.ts
@@ -116,15 +137,13 @@ jobs:
     name: "L2: AI Testing"
     runs-on: ubuntu-latest
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      (github.event.workflow_run.event != 'pull_request' ||
-       github.event.workflow_run.pull_requests[0].head.repo.full_name == github.event.workflow_run.repository.full_name)
-    needs: [l1-smoke]
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.fork == false
+    needs: [l1-smoke, docker-build]
     continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -143,13 +162,11 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Download Docker image from CI
+      - name: Download Docker image
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stiglab-docker-image
           path: /tmp
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
 
       - name: Load and start Docker container
         run: |
@@ -158,7 +175,7 @@ jobs:
             -p 3000:3000 \
             -e STIGLAB_HOST=0.0.0.0 \
             -e PORT=3000 \
-            stiglab:ci server
+            stiglab:test server
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
               echo "Container ready after ${i}s"
@@ -185,7 +202,7 @@ jobs:
       - name: Determine diff range
         id: diff
         run: |
-          if [ "${{ github.event.workflow_run.event }}" = "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "range=origin/main...HEAD" >> "$GITHUB_OUTPUT"
           else
             echo "range=HEAD~1...HEAD" >> "$GITHUB_OUTPUT"
@@ -277,7 +294,7 @@ jobs:
       - name: Push screenshots to branch for embedding
         if: >-
           always() && !cancelled() &&
-          github.event.workflow_run.event == 'pull_request'
+          github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -287,11 +304,10 @@ jobs:
             exit 0
           fi
 
-          PR_NUMBER=${{ github.event.workflow_run.pull_requests[0].number }}
+          PR_NUMBER=${{ github.event.pull_request.number }}
           BRANCH="l2-screenshots/pr-${PR_NUMBER}"
           REPO="${{ github.repository }}"
 
-          # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -303,14 +319,13 @@ jobs:
           git commit -m "L2 screenshots for PR #${PR_NUMBER}" --allow-empty
           git push -f origin "$BRANCH"
 
-          # Export screenshot URLs for the comment step
           echo "SCREENSHOT_BRANCH=${BRANCH}" >> "$GITHUB_ENV"
           echo "SCREENSHOT_REPO=${REPO}" >> "$GITHUB_ENV"
 
       - name: Post L2 results to PR
         if: >-
           always() && !cancelled() &&
-          github.event.workflow_run.event == 'pull_request'
+          github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -319,7 +334,7 @@ jobs:
             exit 0
           fi
 
-          PR_NUMBER=${{ github.event.workflow_run.pull_requests[0].number }}
+          PR_NUMBER=${{ github.event.pull_request.number }}
           MARKER="<!-- l2-verdict -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           ARTIFACT_URL="${RUN_URL}#artifacts"
@@ -335,7 +350,6 @@ jobs:
               for f in /tmp/l2-screenshots/*.png; do
                 [ -f "$f" ] || continue
                 NAME=$(basename "$f" .png)
-                # Derive label from filename (e.g., dashboard-desktop → Dashboard — Desktop)
                 LABEL=$(echo "$NAME" | sed 's/-/ /g; s/\b\(.\)/\u\1/g' | sed 's/ Desktop/ — Desktop/; s/ Mobile/ — Mobile/')
                 echo "![${LABEL}](https://raw.githubusercontent.com/${REPO}/${BRANCH}/$(basename "$f"))"
               done
@@ -344,7 +358,6 @@ jobs:
 
           SCREENSHOT_COUNT=$(find /tmp/l2-screenshots -name '*.png' 2>/dev/null | wc -l || echo 0)
 
-          # Build final comment
           {
             echo "$MARKER"
             cat /tmp/l2-comment.md
@@ -361,7 +374,7 @@ jobs:
               echo ""
             elif [ "$SCREENSHOT_COUNT" -gt 0 ]; then
               echo "---"
-              echo "> **Screenshots**: ${SCREENSHOT_COUNT} captured (Desktop + Mobile) — [Download from CI artifacts](${ARTIFACT_URL})"
+              echo "> **Screenshots**: ${SCREENSHOT_COUNT} captured — [Download from CI artifacts](${ARTIFACT_URL})"
               echo ""
             fi
             echo "---"
@@ -370,7 +383,6 @@ jobs:
 
           BODY_JSON=$(jq -n --arg body "$(cat /tmp/l2-comment-final.md)" '{body: $body}')
 
-          # Upsert PR comment
           COMMENT_ID=$(curl -sf -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" \
             "${API_BASE}/issues/${PR_NUMBER}/comments?per_page=100" \
             | jq -r ".[] | select(.body | contains(\"${MARKER}\")) | .id" | tail -1 || true)
@@ -392,15 +404,13 @@ jobs:
     if: >-
       always() &&
       needs.l1-e2e.result == 'failure' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      (github.event.workflow_run.event != 'pull_request' ||
-       github.event.workflow_run.pull_requests[0].head.repo.full_name == github.event.workflow_run.repository.full_name)
-    needs: [l1-e2e]
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.fork == false)
+    needs: [l1-e2e, docker-build]
     continue-on-error: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -419,13 +429,11 @@ jobs:
           npm install -g agent-browser
           agent-browser install --with-deps
 
-      - name: Download Docker image from CI
+      - name: Download Docker image
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stiglab-docker-image
           path: /tmp
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
 
       - name: Load and start Docker container
         run: |
@@ -434,7 +442,7 @@ jobs:
             -p 3000:3000 \
             -e STIGLAB_HOST=0.0.0.0 \
             -e PORT=3000 \
-            stiglab:ci server
+            stiglab:test server
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
               echo "Container ready after ${i}s"
@@ -515,7 +523,7 @@ jobs:
       - name: Post triage results to PR
         if: >-
           always() && !cancelled() &&
-          github.event.workflow_run.event == 'pull_request'
+          github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -524,7 +532,7 @@ jobs:
             exit 0
           fi
 
-          PR_NUMBER=${{ github.event.workflow_run.pull_requests[0].number }}
+          PR_NUMBER=${{ github.event.pull_request.number }}
           MARKER="<!-- l2-triage -->"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           API_BASE="https://api.github.com/repos/${{ github.repository }}"
