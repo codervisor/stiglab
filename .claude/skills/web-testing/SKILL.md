@@ -64,7 +64,7 @@ agent-browser batch "open http://localhost:3000" "screenshot --screenshot-dir /t
 mv /tmp/l2-screenshots/screenshot-*.png /tmp/l2-screenshots/dashboard-desktop.png
 
 agent-browser set viewport 375 812
-agent-browser batch "screenshot --screenshot-dir /tmp/l2-screenshots"
+agent-browser batch "open http://localhost:3000" "screenshot --screenshot-dir /tmp/l2-screenshots"
 mv /tmp/l2-screenshots/screenshot-*.png /tmp/l2-screenshots/dashboard-mobile.png
 ```
 
