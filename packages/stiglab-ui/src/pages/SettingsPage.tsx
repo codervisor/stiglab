@@ -105,22 +105,46 @@ export function SettingsPage() {
           {credentials.map((cred) => (
             <div
               key={cred.name}
-              className="flex items-center gap-2 rounded-md border p-3"
+              className="space-y-2 rounded-md border p-3"
             >
-              <div className="flex-1">
-                <p className="font-mono text-sm font-medium">{cred.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  Updated {new Date(cred.updated_at).toLocaleDateString()}
-                </p>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-sm font-medium">{cred.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Updated {new Date(cred.updated_at).toLocaleDateString()}
+                  </p>
+                </div>
+                {editingCred !== cred.name && (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingCred(cred.name)
+                        setEditValue("")
+                      }}
+                    >
+                      Update
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deleteCred.mutate(cred.name)}
+                      disabled={deleteCred.isPending}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
-              {editingCred === cred.name ? (
+              {editingCred === cred.name && (
                 <div className="flex items-center gap-2">
                   <Input
                     type="password"
                     placeholder="New value"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    className="w-48"
+                    className="flex-1"
                   />
                   <Button
                     size="sm"
@@ -142,27 +166,6 @@ export function SettingsPage() {
                     Cancel
                   </Button>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingCred(cred.name)
-                      setEditValue("")
-                    }}
-                  >
-                    Update
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => deleteCred.mutate(cred.name)}
-                    disabled={deleteCred.isPending}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
               )}
             </div>
           ))}
@@ -178,22 +181,38 @@ export function SettingsPage() {
                 (known) => (
                   <div
                     key={known.name}
-                    className="flex items-center gap-2 rounded-md border border-dashed p-3"
+                    className="space-y-2 rounded-md border border-dashed p-3"
                   >
-                    <div className="flex-1">
-                      <p className="font-mono text-sm">{known.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {known.description}
-                      </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-mono text-sm">{known.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {known.description}
+                        </p>
+                      </div>
+                      {editingCred !== `new-${known.name}` && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => {
+                            setEditingCred(`new-${known.name}`)
+                            setEditValue("")
+                          }}
+                        >
+                          <Plus className="mr-1 h-3 w-3" />
+                          Add
+                        </Button>
+                      )}
                     </div>
-                    {editingCred === `new-${known.name}` ? (
+                    {editingCred === `new-${known.name}` && (
                       <div className="flex items-center gap-2">
                         <Input
                           type="password"
                           placeholder="Value"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          className="w-48"
+                          className="flex-1"
                         />
                         <Button
                           size="sm"
@@ -218,18 +237,6 @@ export function SettingsPage() {
                           Cancel
                         </Button>
                       </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingCred(`new-${known.name}`)
-                          setEditValue("")
-                        }}
-                      >
-                        <Plus className="mr-1 h-3 w-3" />
-                        Add
-                      </Button>
                     )}
                   </div>
                 )
@@ -242,19 +249,18 @@ export function SettingsPage() {
             <p className="text-sm font-medium text-muted-foreground">
               Custom credential
             </p>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[auto_1fr_auto]">
               <Input
                 placeholder="ENV_VAR_NAME"
                 value={newCredName}
                 onChange={(e) => setNewCredName(e.target.value.toUpperCase())}
-                className="w-48"
+                className="sm:w-48"
               />
               <Input
                 type="password"
                 placeholder="Value"
                 value={newCredValue}
                 onChange={(e) => setNewCredValue(e.target.value)}
-                className="flex-1"
               />
               <Button
                 size="sm"
