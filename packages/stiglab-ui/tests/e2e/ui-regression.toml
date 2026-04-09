@@ -31,6 +31,11 @@ path = "/nodes"
 must_contain = ["Nodes", "Registered Nodes"]
 must_not_contain = ["undefined", "NaN"]
 
+[route.settings]
+path = "/settings"
+must_contain = ["Settings", "Credentials", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "Custom credential"]
+must_not_contain = ["undefined", "NaN"]
+
 # ─── Flows ─────────────────────────────────────────────────────
 
 [flow.sidebar_navigation]
