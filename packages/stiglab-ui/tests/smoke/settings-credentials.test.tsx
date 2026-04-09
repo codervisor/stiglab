@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SettingsPage } from "@/pages/SettingsPage"
 
@@ -84,5 +84,66 @@ describe("SettingsPage credentials layout", () => {
     const { findByRole } = renderSettings()
     const deleteBtn = await findByRole("button", { name: "Delete MY_SECRET" })
     expect(deleteBtn).toBeInTheDocument()
+  })
+
+  it("inline edit form wraps inputs in a <form> element", () => {
+    renderSettings()
+    const [firstAdd] = screen.getAllByRole("button", { name: /add/i })
+    fireEvent.click(firstAdd)
+    const saveBtn = screen.getByRole("button", { name: /save/i })
+    expect(saveBtn.closest("form")).not.toBeNull()
+  })
+
+  it("submitting inline edit form via Enter key triggers mutation", async () => {
+    const { api: mockApi } = await import("@/lib/api")
+    vi.mocked(mockApi.setCredential).mockResolvedValue(undefined)
+    renderSettings()
+    const [firstAdd] = screen.getAllByRole("button", { name: /add/i })
+    fireEvent.click(firstAdd)
+    const input = screen.getAllByPlaceholderText(/value/i)[0]
+    fireEvent.change(input, { target: { value: "secret123" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() =>
+      expect(mockApi.setCredential).toHaveBeenCalledWith(
+        expect.objectContaining({ value: "secret123" }),
+      ),
+    )
+  })
+
+  it("shows save error message when mutation fails", async () => {
+    const { api: mockApi } = await import("@/lib/api")
+    vi.mocked(mockApi.setCredential).mockRejectedValueOnce(
+      new Error("Unauthorized"),
+    )
+    renderSettings()
+    const [firstAdd] = screen.getAllByRole("button", { name: /add/i })
+    fireEvent.click(firstAdd)
+    const input = screen.getAllByPlaceholderText(/value/i)[0]
+    fireEvent.change(input, { target: { value: "bad" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() =>
+      expect(screen.getByText("Unauthorized")).toBeInTheDocument(),
+    )
+  })
+
+  it("cancel clears the save error", async () => {
+    const { api: mockApi } = await import("@/lib/api")
+    vi.mocked(mockApi.setCredential).mockRejectedValueOnce(
+      new Error("Unauthorized"),
+    )
+    renderSettings()
+    const [firstAdd] = screen.getAllByRole("button", { name: /add/i })
+    fireEvent.click(firstAdd)
+    const input = screen.getAllByPlaceholderText(/value/i)[0]
+    fireEvent.change(input, { target: { value: "bad" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() =>
+      expect(screen.getByText("Unauthorized")).toBeInTheDocument(),
+    )
+    // Re-open the form and cancel — error should be gone
+    const [nextAdd] = screen.getAllByRole("button", { name: /add/i })
+    fireEvent.click(nextAdd)
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }))
+    expect(screen.queryByText("Unauthorized")).toBeNull()
   })
 })
