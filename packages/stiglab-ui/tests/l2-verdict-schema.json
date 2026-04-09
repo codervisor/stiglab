@@ -15,9 +15,22 @@
         "properties": {
           "route": { "type": "string" },
           "status": { "type": "string", "enum": ["PASS", "FAIL", "SKIP"] },
-          "notes": { "type": "string" }
+          "notes": { "type": "string" },
+          "viewports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "enum": ["desktop", "mobile"] },
+                "status": { "type": "string", "enum": ["PASS", "FAIL", "SKIP"] },
+                "screenshot": { "type": "string", "description": "Path to screenshot file" },
+                "notes": { "type": "string" }
+              },
+              "required": ["name", "status", "screenshot"]
+            }
+          }
         },
-        "required": ["route", "status", "notes"]
+        "required": ["route", "status", "notes", "viewports"]
       }
     },
     "issues": {

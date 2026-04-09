@@ -26,6 +26,50 @@ L2 works from three things — no separate spec needed:
 | `/sessions/:id` | Session Detail | Session metadata, output log stream |
 | `/nodes` | Nodes | Registered Nodes table with status badges |
 
+## Viewports
+
+Every affected page MUST be tested at both viewports:
+
+| Name | Width x Height | Description |
+|------|---------------|-------------|
+| `desktop` | 1280 x 720 | Default desktop viewport |
+| `mobile` | 375 x 812 | Mobile (iPhone-class) viewport |
+
+Set viewport before testing each size:
+```bash
+# Desktop
+agent-browser set viewport 1280 720
+# Mobile
+agent-browser set viewport 375 812
+```
+
+## Screenshots
+
+Screenshots are the primary evidence for L2 results. Every page at every
+viewport MUST have a screenshot saved to `/tmp/l2-screenshots/`.
+
+Naming convention: `{route_slug}-{viewport}.png`
+- `/` → `dashboard-desktop.png`, `dashboard-mobile.png`
+- `/sessions` → `sessions-desktop.png`, `sessions-mobile.png`
+- `/sessions/:id` → `session-detail-desktop.png`, `session-detail-mobile.png`
+- `/nodes` → `nodes-desktop.png`, `nodes-mobile.png`
+
+```bash
+# Create the screenshot directory
+mkdir -p /tmp/l2-screenshots
+
+# Example: capture dashboard at both viewports
+agent-browser set viewport 1280 720
+agent-browser batch "open http://localhost:3000" "screenshot --screenshot-dir /tmp/l2-screenshots"
+mv /tmp/l2-screenshots/screenshot-*.png /tmp/l2-screenshots/dashboard-desktop.png
+
+agent-browser set viewport 375 812
+agent-browser batch "screenshot --screenshot-dir /tmp/l2-screenshots"
+mv /tmp/l2-screenshots/screenshot-*.png /tmp/l2-screenshots/dashboard-mobile.png
+```
+
+Include each screenshot path in the structured output `viewports[].screenshot` field.
+
 ## Execution
 
 ### 1. Read the diff
@@ -36,13 +80,21 @@ Map changed files to affected routes:
 - `src/hooks/*`, `src/lib/*` → all pages that import it
 - `src/App.tsx`, `src/components/layout/*` → all routes
 
-### 2. Test affected pages
+### 2. Test affected pages (both viewports)
 
-For each affected page, use the `agent-browser` skill to:
-- Open the route and take a snapshot
-- Verify changed elements render correctly
-- Check for "undefined", "NaN", or uncaught errors
-- Test interactions (navigation, clicks, toggles)
+For each affected page, at **each viewport** (desktop then mobile):
+1. Set the viewport with `agent-browser set viewport`
+2. Open the route and take a snapshot
+3. Verify changed elements render correctly
+4. Check for "undefined", "NaN", or uncaught errors
+5. Check layout is not broken at the current viewport size
+6. Take a screenshot and save it to `/tmp/l2-screenshots/`
+
+**Mobile-specific checks:**
+- No horizontal overflow (content fits within 375px)
+- Navigation is accessible (hamburger menu, etc.)
+- Tables are scrollable or have responsive layout
+- Text is readable without zooming
 
 ### 3. Crystallize findings into L1
 
@@ -55,22 +107,28 @@ For each affected page, use the `agent-browser` skill to:
 
 ### 4. Report
 
-```markdown
-## L2 Test Results — PR #N
+Return structured JSON matching the verdict schema. Every page entry must
+include a `viewports` array with desktop and mobile entries, each containing
+a `screenshot` path pointing to the saved file.
 
-**Status**: PASS / FAIL / PARTIAL
-
-### Pages tested
-| Route | Status | Notes |
-|-------|--------|-------|
-| / | PASS | Dashboard renders correctly |
-| /sessions | PASS | New filter component works |
-
-### Crystallized into L1
-- tests/smoke/session-filter.test.tsx (3 tests)
-
-### Issues found
-- (none or description + evidence)
+```json
+{
+  "verdict": "PASS",
+  "summary": "All 3 affected pages pass at desktop and mobile viewports",
+  "pages_tested": [
+    {
+      "route": "/",
+      "status": "PASS",
+      "notes": "Dashboard renders correctly at both viewports",
+      "viewports": [
+        { "name": "desktop", "status": "PASS", "screenshot": "/tmp/l2-screenshots/dashboard-desktop.png" },
+        { "name": "mobile", "status": "PASS", "screenshot": "/tmp/l2-screenshots/dashboard-mobile.png" }
+      ]
+    }
+  ],
+  "issues": [],
+  "crystallized": ["tests/smoke/session-filter.test.tsx (3 tests)"]
+}
 ```
 
 ## L1 triage mode
