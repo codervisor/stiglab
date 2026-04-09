@@ -323,13 +323,15 @@ jobs:
       - name: Persist crystallized tests
         if: >-
           always() && !cancelled() &&
-          github.event_name == 'pull_request'
+          github.event_name == 'pull_request' &&
+          github.actor != 'github-actions[bot]'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Detect new or modified test files written by L2 crystallization
+          # --diff-filter=AM excludes deleted paths that would break cp
           CRYSTAL=$(
-            { git diff --name-only; git ls-files --others --exclude-standard; } \
+            { git diff --diff-filter=AM --name-only; git ls-files --others --exclude-standard; } \
             | grep -E '^packages/stiglab-ui/tests/(smoke|e2e)/' \
             | sort -u
           ) || true
@@ -362,10 +364,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          echo "$CRYSTAL" | xargs git add
-          git commit -m "test: crystallize L2 findings into L1 tests"
-          git push origin "$PR_BRANCH"
-          echo "::notice::Crystallized tests committed to ${PR_BRANCH}"
+          while IFS= read -r f; do
+            git add -- "$f"
+          done <<< "$CRYSTAL"
+
+          if git diff --cached --quiet; then
+            echo "::notice::No staged crystallized test changes to commit"
+          else
+            git commit -m "test: crystallize L2 findings into L1 tests"
+            git push origin "$PR_BRANCH"
+            echo "::notice::Crystallized tests committed to ${PR_BRANCH}"
+          fi
 
       - name: Stop Docker container
         if: always()
