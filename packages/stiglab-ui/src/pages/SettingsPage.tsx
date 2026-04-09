@@ -25,6 +25,7 @@ export function SettingsPage() {
   const [newCredValue, setNewCredValue] = useState("")
   const [editingCred, setEditingCred] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const { data: credData } = useQuery({
     queryKey: ["credentials"],
@@ -40,6 +41,10 @@ export function SettingsPage() {
       setNewCredValue("")
       setEditingCred(null)
       setEditValue("")
+      setSaveError(null)
+    },
+    onError: (error) => {
+      setSaveError(error instanceof Error ? error.message : "Failed to save")
     },
   })
 
@@ -140,34 +145,45 @@ export function SettingsPage() {
                 )}
               </div>
               {editingCred === cred.name && (
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="password"
-                    placeholder="New value"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      setCred.mutate({ name: cred.name, value: editValue })
-                    }
-                    disabled={!editValue || setCred.isPending}
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingCred(null)
-                      setEditValue("")
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (editValue) setCred.mutate({ name: cred.name, value: editValue })
+                  }}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="password"
+                      placeholder="New value"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      type="submit"
+                      disabled={!editValue || setCred.isPending}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingCred(null)
+                        setEditValue("")
+                        setSaveError(null)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {saveError && (
+                    <p className="text-xs text-destructive">{saveError}</p>
+                  )}
+                </form>
               )}
             </div>
           ))}
@@ -208,37 +224,45 @@ export function SettingsPage() {
                       )}
                     </div>
                     {editingCred === `new-${known.name}` && (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="password"
-                          placeholder="Value"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            setCred.mutate({
-                              name: known.name,
-                              value: editValue,
-                            })
-                          }
-                          disabled={!editValue || setCred.isPending}
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingCred(null)
-                            setEditValue("")
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          if (editValue) setCred.mutate({ name: known.name, value: editValue })
+                        }}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="password"
+                            placeholder="Value"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="flex-1"
+                          />
+                          <Button
+                            size="sm"
+                            type="submit"
+                            disabled={!editValue || setCred.isPending}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingCred(null)
+                              setEditValue("")
+                              setSaveError(null)
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        {saveError && (
+                          <p className="text-xs text-destructive">{saveError}</p>
+                        )}
+                      </form>
                     )}
                   </div>
                 )
@@ -247,7 +271,13 @@ export function SettingsPage() {
           )}
 
           {/* Custom credential */}
-          <div className="space-y-2 border-t pt-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (newCredName && newCredValue) setCred.mutate({ name: newCredName, value: newCredValue })
+            }}
+            className="space-y-2 border-t pt-4"
+          >
             <p className="text-sm font-medium text-muted-foreground">
               Custom credential
             </p>
@@ -266,16 +296,17 @@ export function SettingsPage() {
               />
               <Button
                 size="sm"
-                onClick={() =>
-                  setCred.mutate({ name: newCredName, value: newCredValue })
-                }
+                type="submit"
                 disabled={!newCredName || !newCredValue || setCred.isPending}
               >
                 <Plus className="mr-1 h-3 w-3" />
                 Add
               </Button>
             </div>
-          </div>
+            {saveError && (
+              <p className="text-xs text-destructive">{saveError}</p>
+            )}
+          </form>
         </CardContent>
       </Card>
     </div>
