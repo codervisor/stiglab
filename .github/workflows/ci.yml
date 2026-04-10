@@ -374,7 +374,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "::notice::No staged crystallized test changes to commit"
           else
-            git commit -m "test: crystallize L2 findings into L1 tests"
+            git commit -m "test: crystallize L2 findings into L1 tests [skip ci]"
             git push origin "$PR_BRANCH"
             echo "::notice::Crystallized tests committed to ${PR_BRANCH}"
           fi
