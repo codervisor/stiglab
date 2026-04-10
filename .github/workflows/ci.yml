@@ -178,6 +178,7 @@ jobs:
   l2:
     name: "L2: AI Testing"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.fork == false
@@ -284,32 +285,32 @@ jobs:
 
           Keep it cheap — only test what the diff touches.
           PROMPT
-          )" --max-turns 30 \
+          )" \
             --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
             --dangerously-skip-permissions \
             --output-format stream-json \
             --verbose \
             --json-schema "$SCHEMA" \
-            | node packages/stiglab-ui/tests/parse-l2-stream.mjs /tmp/l2-result.json
+            | node packages/stiglab-ui/tests/parse-l2-stream.mjs /tmp/l2-result.json \
+            || true
 
           echo "::group::Raw result JSON"
-          cat /tmp/l2-result.json
+          cat /tmp/l2-result.json 2>/dev/null || echo '{"result":"L2 agent produced no output"}'
           echo "::endgroup::"
 
           VERDICT=$(jq -r '.structured_output.verdict // empty' /tmp/l2-result.json 2>/dev/null || true)
           if [ -z "$VERDICT" ]; then
-            echo "::warning::structured_output not found, falling back to .result"
+            echo "::error::No structured verdict — treating as inconclusive"
             jq -r '.result // "No result field found"' /tmp/l2-result.json > /tmp/l2-verdict-raw.md 2>/dev/null || cat /tmp/l2-result.json > /tmp/l2-verdict-raw.md
             {
               echo "## L2: AI Testing"
               echo ""
+              echo "> **⚠️ INCONCLUSIVE** — agent did not produce a structured verdict"
+              echo ""
               cat /tmp/l2-verdict-raw.md
             } > /tmp/l2-comment.md
             cat /tmp/l2-comment.md >> "$GITHUB_STEP_SUMMARY"
-            if grep -qi "FAIL" /tmp/l2-verdict-raw.md; then
-              exit 1
-            fi
-            exit 0
+            exit 1
           fi
 
           node packages/stiglab-ui/tests/format-l2-comment.mjs \
@@ -317,8 +318,8 @@ jobs:
             /tmp/l2-comment.md
           cat /tmp/l2-comment.md >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$VERDICT" != "PASS" ]; then
-            echo "::error::L2 testing verdict: ${VERDICT}"
+          if [ "$VERDICT" = "FAIL" ]; then
+            echo "::error::L2 testing verdict: FAIL"
             exit 1
           fi
 
