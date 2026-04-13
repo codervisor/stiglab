@@ -24,3 +24,4 @@ base64 = { workspace = true }
 ring = { workspace = true }
 hex = { workspace = true }
 axum-extra = { workspace = true }
+onsager = { workspace = true }

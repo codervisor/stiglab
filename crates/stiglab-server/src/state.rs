@@ -6,6 +6,7 @@ use sqlx::AnyPool;
 use tokio::sync::{mpsc, RwLock};
 
 use crate::config::ServerConfig;
+use crate::spine::SpineEmitter;
 
 pub type WsSender = mpsc::UnboundedSender<Message>;
 
@@ -21,14 +22,16 @@ pub struct AppState {
     pub db: AnyPool,
     pub agents: Arc<RwLock<HashMap<String, AgentConnection>>>,
     pub config: ServerConfig,
+    pub spine: Option<SpineEmitter>,
 }
 
 impl AppState {
-    pub fn new(db: AnyPool, config: ServerConfig) -> Self {
+    pub fn new(db: AnyPool, config: ServerConfig, spine: Option<SpineEmitter>) -> Self {
         AppState {
             db,
             agents: Arc::new(RwLock::new(HashMap::new())),
             config,
+            spine,
         }
     }
 }

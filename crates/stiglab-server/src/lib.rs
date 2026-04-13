@@ -3,6 +3,7 @@ pub mod config;
 pub mod db;
 pub mod handler;
 pub mod routes;
+pub mod spine;
 pub mod state;
 pub mod ws;
 
@@ -23,6 +24,7 @@ pub fn build_router(state: AppState, config: &ServerConfig) -> Router {
         .route("/api/health", get(routes::health::health))
         .route("/api/nodes", get(routes::nodes::list_nodes))
         .route("/api/tasks", post(routes::tasks::create_task))
+        .route("/api/shaping", post(routes::shaping::create_shaping))
         .route("/api/sessions", get(routes::sessions::list_sessions))
         .route("/api/sessions/{id}", get(routes::sessions::get_session))
         .route(

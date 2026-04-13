@@ -6,6 +6,7 @@ use tracing_subscriber::EnvFilter;
 
 use stiglab_agent::config::AgentConfig;
 use stiglab_server::config::ServerConfig;
+use stiglab_server::spine::SpineEmitter;
 use stiglab_server::{db, state::AppState};
 
 #[derive(Parser)]
@@ -98,7 +99,26 @@ async fn run_server(
     tracing::info!("connecting to database...");
     let pool = db::init_pool(&config.database_url).await?;
     tracing::info!("database connected");
-    let state = AppState::new(pool.clone(), config.clone());
+
+    // Connect to Onsager event spine if configured
+    let spine = if let Ok(url) = std::env::var("ONSAGER_DATABASE_URL") {
+        tracing::info!("connecting to onsager event spine...");
+        match SpineEmitter::connect(&url).await {
+            Ok(emitter) => {
+                tracing::info!("onsager event spine connected");
+                Some(emitter)
+            }
+            Err(e) => {
+                tracing::warn!("failed to connect to onsager event spine: {e}");
+                None
+            }
+        }
+    } else {
+        tracing::info!("ONSAGER_DATABASE_URL not set, spine events disabled");
+        None
+    };
+
+    let state = AppState::new(pool.clone(), config.clone(), spine);
 
     // Start built-in runner if enabled
     if !no_runner {
